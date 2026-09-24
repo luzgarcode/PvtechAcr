@@ -4,12 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PV Terrain – remplir les PV d'installation</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#17212B">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="./vendor/pdf.worker.min.js"></script>
+<script src="./vendor/pdf.min.js"></script>
+<script src="./vendor/pdf-lib.min.js"></script>
 <style id="appstyle">
 :root{
   --paper:#EDF0F2; --surface:#FFFFFF; --surface-2:#F6F8F9; --ink:#17212B; --ink-2:#4A5763; --line:#D3DAE0;
@@ -298,7 +302,7 @@ const Store = {
 function clone2(v){ return v; }
 
 /* ============ PDF helpers ============ */
-if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.js";
 const pdfCache = new Map();
 async function loadPdfJs(tpl){
   const key = tpl.id + ":" + (tpl.pdfVersion||0);
@@ -772,6 +776,7 @@ async function previewPdf(){
   const res = await syncManifest();
   S.syncing = false; S.syncError = res.error || null;
   if (S.view === "home") showHome();
+  if ("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }
 })();
 </script>
 </body>
