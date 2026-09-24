@@ -109,6 +109,11 @@ img{ max-width:100%; }
 .doc-ico{ width:38px; height:46px; border:2px solid var(--ink); border-radius:3px; position:relative; flex:none; background:var(--surface-2); }
 .doc-ico::before{ content:""; position:absolute; left:6px; right:6px; top:10px; height:2px; background:var(--ink-2); box-shadow:0 7px 0 var(--ink-2), 0 14px 0 var(--ink-2); }
 .doc-ico.filled::after{ content:""; position:absolute; right:-6px; bottom:-6px; width:16px; height:16px; background:var(--vis); border-radius:50%; border:2px solid var(--surface); }
+.client-row{ cursor:pointer; }
+.client-row:hover{ background:var(--surface-2); }
+.client-ico{ background:var(--blue-soft); color:var(--blue); border:none; display:flex; align-items:center; justify-content:center; font-family:var(--font-c); font-weight:700; font-size:16px; }
+.chev{ flex:none; color:var(--ink-2); width:20px; height:20px; }
+.row .title{}
 .empty{ padding:22px 16px; color:var(--ink-2); }
 .progress{ height:6px; background:var(--surface-2); border-radius:3px; overflow:hidden; margin-top:6px; max-width:240px; }
 .progress b{ display:block; height:100%; background:var(--ok); }
@@ -272,6 +277,7 @@ const ICON = {
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   zin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l5 5M7 10h6M10 7v6"/></svg>',
   zout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l5 5M7 10h6"/></svg>',
+  chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
 };
 const TYPES = {
   text:{label:"Texte", def:[150,16]}, multiline:{label:"Paragraphe", def:[260,50]}, date:{label:"Date", def:[90,16]},
@@ -318,6 +324,16 @@ async function pageSizes(pdf){
 const S = { view:"home", tpl:null, draft:null, manifestIndex:new Map(), syncing:false };
 const main = $("#main"), bar = $("#bar");
 
+const TAXONOMY = [
+  {client:"McDonald's", categories:["Borne","Drive","Audio","Service à table","Autre"]},
+  {client:"KFC", categories:["Borne","Drive","Audio","Autre"]},
+  {client:"Burger King", categories:["Service à table"]},
+  {client:"O'Tacos", categories:["Borne","DMB","Ouverture","Autre"]},
+  {client:"Générique", categories:["Autre"]},
+];
+function clientDef(name){ return TAXONOMY.find(c => c.client===name); }
+function initialsClient(name){ const w=String(name||"").replace(/[^\p{L}\s'']/gu,"").trim().split(/\s+/).filter(Boolean); return (w[0]?.[0]||"").concat(w[1]?.[0]||"").toUpperCase() || "?"; }
+
 async function saveFile(filename, bytes, mime){
   const blob = new Blob([bytes], {type:mime});
   const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 8000);
@@ -338,7 +354,7 @@ async function syncManifest(){
         fetchJson(`./models/${m.id}/meta.json`),
         fetchBuf(`./models/${m.id}/${m.id}.pdf`)
       ]);
-      await Store.put("templates", {id:m.id, name:meta.name, fields:meta.fields, annexPhotos:meta.annexPhotos||[], optionalPages:meta.optionalPages||[], pdf, createdAt:(cur&&cur.createdAt)||Date.now(), updatedAt:m.updatedAt||0, published:true});
+      await Store.put("templates", {id:m.id, name:meta.name, fields:meta.fields, annexPhotos:meta.annexPhotos||[], optionalPages:meta.optionalPages||[], client:meta.client||"Générique", category:meta.category||"Autre", pdf, createdAt:(cur&&cur.createdAt)||Date.now(), updatedAt:m.updatedAt||0, published:true});
     }
     for (const t of await Store.all("templates")) if (t.published && !S.manifestIndex.has(t.id)) await Store.del("templates", t.id);
     await Store.put("meta", {k:"lastSync", v:Date.now()});
@@ -366,19 +382,35 @@ async function saveProfile(p){ await Store.put("meta", {k:"techProfile", v:p}); 
 function profileFilled(p){ return !!(p.name || p.phone || p.email); }
 function initials(name){ const w=String(name||"").trim().split(/\s+/).filter(Boolean); return (w[0]?.[0]||"") .concat(w[1]?.[0]||"").toUpperCase() || "?"; }
 
+function tplClient(t){ return (t.client && clientDef(t.client)) ? t.client : "Générique"; }
+function tplCategory(t){ const cd = clientDef(tplClient(t)); const c = t.category; return (cd && cd.categories.includes(c)) ? c : "Autre"; }
+async function bindDraftRows(drafts, tplName){
+  $$("[data-open-draft]").forEach(b => b.onclick = () => openFill(b.dataset.openDraft));
+  $$("[data-del-draft]").forEach(b => b.onclick = async () => { const d=drafts.find(x=>x.id===b.dataset.delDraft); if(!confirm(`Supprimer le rapport « ${d.name} » ?`)) return; await Store.del("drafts", d.id); render(); });
+}
+function draftRowsHtml(drafts, tpls, tplName){
+  return drafts.length ? drafts.map(d => {
+    const tpl = tpls.find(t=>t.id===d.templateId); const tot = tpl ? tpl.fields.length : 0; const n = countFilled(d, tpl);
+    return `<div class="row"><div class="doc-ico filled"></div><div class="main"><div class="name">${esc(d.name)}</div><div class="meta">${esc(tplName(d.templateId))} · modifié le ${fmtDate(d.updatedAt)}</div>${tot?`<div class="progress" title="${n} sur ${tot} zones remplies"><b style="width:${Math.round(100*n/tot)}%"></b></div>`:""}</div>
+    <div class="acts"><button class="btn primary" data-open-draft="${d.id}">Reprendre</button><button class="btn danger ghost" data-del-draft="${d.id}">Supprimer</button></div></div>`;}).join("")
+    : `<div class="empty">Aucun rapport en cours.</div>`;
+}
+
 async function showHome(){
-  S.view="home"; S.tpl=null; S.draft=null; await homeBar();
+  S.view="home"; S.tpl=null; S.draft=null; S.client=null; S.category=null; await homeBar();
   const [tpls, drafts, profile] = await Promise.all([Store.all("templates"), Store.all("drafts"), getProfile()]);
-  tpls.sort((a,b)=>a.name.localeCompare(b.name,"fr")); drafts.sort((a,b)=>b.updatedAt-a.updatedAt);
+  drafts.sort((a,b)=>b.updatedAt-a.updatedAt);
   const tplName = id => (tpls.find(t=>t.id===id)||{}).name || "Modèle supprimé";
   const openCount = drafts.length;
+  const clients = TAXONOMY.filter(c => c.client !== "Générique" || tpls.some(t => tplClient(t)==="Générique"));
+  const countFor = client => tpls.filter(t => tplClient(t)===client).length;
   main.innerHTML = `
   <div class="wrap">
     ${Store.persistent?"":`<div class="warn">Le stockage du navigateur n'est pas disponible ici : vos rapports seront perdus en fermant la page.</div>`}
     <div class="hero">
       <div class="hero-badge">${ICON.mark}PV Terrain</div>
       <h1>Remplissez le PV sur le terrain,<br>récupérez le PDF signé.</h1>
-      <p>Choisissez un modèle, remplissez les infos, les contrôles, les photos et les signatures directement sur le téléphone. L'appli les place dans le PDF d'origine, prêt à envoyer.</p>
+      <p>Choisissez un client, remplissez les infos, les contrôles, les photos et les signatures directement sur le téléphone. L'appli les place dans le PDF d'origine, prêt à envoyer.</p>
     </div>
 
     <div class="profcard" id="profCard">
@@ -396,23 +428,49 @@ async function showHome(){
     </div>
 
     <div class="sec-h"><h2>Rapports en cours</h2></div>
-    <div class="list">${drafts.length ? drafts.map(d => {
-      const tpl = tpls.find(t=>t.id===d.templateId); const tot = tpl ? tpl.fields.length : 0; const n = countFilled(d, tpl);
-      return `<div class="row"><div class="doc-ico filled"></div><div class="main"><div class="name">${esc(d.name)}</div><div class="meta">${esc(tplName(d.templateId))} · modifié le ${fmtDate(d.updatedAt)}</div>${tot?`<div class="progress" title="${n} sur ${tot} zones remplies"><b style="width:${Math.round(100*n/tot)}%"></b></div>`:""}</div>
-      <div class="acts"><button class="btn primary" data-open-draft="${d.id}">Reprendre</button><button class="btn danger ghost" data-del-draft="${d.id}">Supprimer</button></div></div>`;}).join("") : `<div class="empty">Aucun rapport en cours. Choisissez un modèle ci-dessous et touchez « Nouveau rapport ».</div>`}</div>
+    <div class="list">${draftRowsHtml(drafts, tpls, tplName)}</div>
 
-    <div class="sec-h"><h2>Modèles de PV</h2><button class="btn ghost sm" id="refreshBtn">${ICON.sync} Vérifier les mises à jour</button></div>
-    <div class="list">${tpls.length ? tpls.map(t => `<div class="row"><div class="doc-ico"></div><div class="main"><div class="name">${esc(t.name)}</div><div class="meta">${t.fields.length} zone${t.fields.length>1?"s":""} à remplir${t.annexPhotos&&t.annexPhotos.length?` · ${t.annexPhotos.length} photo${t.annexPhotos.length>1?"s":""} demandée${t.annexPhotos.length>1?"s":""}`:""}</div></div>
-      <div class="acts"><button class="btn primary" data-new-draft="${t.id}">Nouveau rapport</button></div></div>`).join("") : `<div class="empty">Aucun modèle disponible pour l'instant.</div>`}</div>
+    <div class="sec-h"><h2>Choisir un client</h2><button class="btn ghost sm" id="refreshBtn">${ICON.sync} Vérifier les mises à jour</button></div>
+    <div class="list">${clients.map(c => `<div class="row client-row" data-client="${esc(c.client)}" role="button" tabindex="0"><div class="doc-ico client-ico">${esc(initialsClient(c.client))}</div><div class="main"><div class="name">${esc(c.client)}</div><div class="meta">${countFor(c.client)} modèle${countFor(c.client)>1?"s":""} disponible${countFor(c.client)>1?"s":""}</div></div><div class="chev">${ICON.chev}</div></div>`).join("")}</div>
     <p class="kbd" style="margin-top:18px">Tes rapports restent sur cet appareil jusqu'à ce que tu télécharges le PDF. Les modèles sont automatiquement vérifiés à l'ouverture de la page.</p>
   </div>`;
   $("#editProfile").onclick = () => showProfile();
   $("#profCard").addEventListener("click", e => { if (e.target.id!=="editProfile") showProfile(); });
   $("#barProfile").onclick = () => showProfile();
   $("#refreshBtn").onclick = async () => { S.syncing=true; await homeBar(); S.syncError=(await syncManifest()).error||null; showHome(); };
+  $$(".client-row").forEach(el => { const go=()=>showClient(el.dataset.client); el.onclick=go; el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }; });
+  bindDraftRows(drafts, tplName);
+}
+
+async function showClient(clientName){
+  S.view="client"; S.client=clientName; S.category=null;
+  setBar(`<button class="btn sm" id="bk" aria-label="Retour">${ICON.back}</button><div class="title">${esc(clientName)}</div><div class="sp"></div><button class="btn sm" id="barProfile" aria-label="Mon profil">${ICON.user}</button>`);
+  $("#bk").onclick = () => showHome();
+  $("#barProfile").onclick = () => showProfile();
+  const cd = clientDef(clientName) || {categories:["Autre"]};
+  const tpls = await Store.all("templates");
+  const forClient = tpls.filter(t => tplClient(t)===clientName);
+  const countFor = cat => forClient.filter(t => tplCategory(t)===cat).length;
+  main.innerHTML = `<div class="wrap">
+    <div class="sec-h"><h2>${esc(clientName)}</h2></div>
+    <div class="list">${cd.categories.map(cat => `<div class="row client-row" data-cat="${esc(cat)}" role="button" tabindex="0"><div class="doc-ico"></div><div class="main"><div class="name">${esc(cat)}</div><div class="meta">${countFor(cat)} modèle${countFor(cat)>1?"s":""}</div></div><div class="chev">${ICON.chev}</div></div>`).join("")}</div>
+  </div>`;
+  $$(".client-row").forEach(el => { const go=()=>showCategory(clientName, el.dataset.cat); el.onclick=go; el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }; });
+}
+
+async function showCategory(clientName, categoryName){
+  S.view="category"; S.client=clientName; S.category=categoryName;
+  setBar(`<button class="btn sm" id="bk" aria-label="Retour">${ICON.back}</button><div class="title">${esc(clientName)} · ${esc(categoryName)}</div><div class="sp"></div><button class="btn sm" id="barProfile" aria-label="Mon profil">${ICON.user}</button>`);
+  $("#bk").onclick = () => showClient(clientName);
+  $("#barProfile").onclick = () => showProfile();
+  const tpls = (await Store.all("templates")).filter(t => tplClient(t)===clientName && tplCategory(t)===categoryName);
+  tpls.sort((a,b)=>a.name.localeCompare(b.name,"fr"));
+  main.innerHTML = `<div class="wrap">
+    <div class="sec-h"><h2>${esc(clientName)} · ${esc(categoryName)}</h2></div>
+    <div class="list">${tpls.length ? tpls.map(t => `<div class="row"><div class="doc-ico"></div><div class="main"><div class="name">${esc(t.name)}</div><div class="meta">${t.fields.length} zone${t.fields.length>1?"s":""} à remplir${t.annexPhotos&&t.annexPhotos.length?` · ${t.annexPhotos.length} photo${t.annexPhotos.length>1?"s":""} demandée${t.annexPhotos.length>1?"s":""}`:""}</div></div>
+      <div class="acts"><button class="btn primary" data-new-draft="${t.id}">Nouveau rapport</button></div></div>`).join("") : `<div class="empty">Aucun modèle pour l'instant dans cette rubrique.</div>`}</div>
+  </div>`;
   $$("[data-new-draft]").forEach(b => b.onclick = () => newDraft(b.dataset.newDraft));
-  $$("[data-open-draft]").forEach(b => b.onclick = () => openFill(b.dataset.openDraft));
-  $$("[data-del-draft]").forEach(b => b.onclick = async () => { const d=drafts.find(x=>x.id===b.dataset.delDraft); if(!confirm(`Supprimer le rapport « ${d.name} » ?`)) return; await Store.del("drafts", d.id); showHome(); });
 }
 
 /* ============ PROFIL TECHNICIEN ============ */
