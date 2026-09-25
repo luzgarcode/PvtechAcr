@@ -536,12 +536,26 @@ async function showProfile(){
       <div class="q"><label for="pfEmail">Email</label><input class="inp" id="pfEmail" type="email" value="${esc(p.email)}" placeholder="jean.dupre@exemple.fr" autocomplete="email"></div>
       <div class="q"><div class="ql">Signature</div><div class="media">${p.signature?`<img class="sig-prev" src="${p.signature}" alt="Signature enregistrée">`:""}<button class="btn sm" id="pfSign">${p.signature?"Refaire la signature":"Enregistrer ma signature"}</button>${p.signature?`<button class="btn sm ghost danger" id="pfSignClear">Effacer</button>`:""}</div></div>
     </div>
+    <div class="divider"></div>
+    <div class="grp" style="padding:14px">
+      <div class="ql">Modèles de PV</div>
+      <p style="margin:6px 0 12px;color:var(--ink-2);font-size:14px">Si un modèle affiche des infos anciennes ou incomplètes malgré « Vérifier les mises à jour », force une resynchronisation complète : ça efface et retélécharge tous les modèles depuis le début. Tes rapports en cours ne sont pas touchés.</p>
+      <button class="btn" id="hardResync">Forcer une resynchronisation complète</button>
+    </div>
   </div>`;
   const save = debounce(async () => { const cur = await getProfile(); await saveProfile({...cur, name:$("#pfName").value.trim(), phone:$("#pfPhone").value.trim(), email:$("#pfEmail").value.trim()}); const ss=$("#ss"); if(ss) ss.textContent="Enregistré"; }, 400);
   const dirty = () => { const ss=$("#ss"); if(ss) ss.textContent="Modifications…"; save(); };
   $("#pfName").oninput = dirty; $("#pfPhone").oninput = dirty; $("#pfEmail").oninput = dirty;
   $("#pfSign").onclick = async () => { const png = await signaturePad("Ma signature", 3); if (png){ const cur = await getProfile(); await saveProfile({...cur, signature:png}); showProfile(); } };
   if ($("#pfSignClear")) $("#pfSignClear").onclick = async () => { const cur = await getProfile(); await saveProfile({...cur, signature:null}); showProfile(); };
+  $("#hardResync").onclick = async () => {
+    if (!confirm("Effacer et retélécharger tous les modèles de PV maintenant ?")) return;
+    const btn = $("#hardResync"); btn.disabled = true; btn.textContent = "Resynchronisation…";
+    for (const t of await Store.all("templates")) if (t.published) await Store.del("templates", t.id);
+    const res = await syncManifest();
+    toast(res.ok ? "Modèles resynchronisés" : "Certains modèles n'ont pas pu être retéléchargés, réessaie");
+    showProfile();
+  };
 }
 function applyProfileToDraft(tpl, draft, profile){
   if (!profileFilled(profile) && !profile.signature) return;
