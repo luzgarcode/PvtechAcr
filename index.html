@@ -353,10 +353,16 @@ async function fetchJson(url){ const r = await fetch(url, {cache:"no-store"}); i
 async function fetchBuf(url){ const r = await fetch(url, {cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); return r.arrayBuffer(); }
 async function syncManifest(){
   S.syncing = true;
+  let manifest; let failures = 0;
   try{
-    const manifest = await fetchJson("./models/manifest.json");
-    S.manifestIndex = new Map(manifest.map(t => [t.id, t.updatedAt||0]));
-    for (const m of manifest){
+    manifest = await fetchJson("./models/manifest.json");
+  }catch(e){
+    S.syncing = false; console.error("syncManifest (manifest)", e);
+    return {ok:false, error:(e&&e.message)||String(e)};
+  }
+  S.manifestIndex = new Map(manifest.map(t => [t.id, t.updatedAt||0]));
+  for (const m of manifest){
+    try{
       const cur = await Store.get("templates", m.id);
       if (cur && (cur.updatedAt||0) >= (m.updatedAt||0)) continue;
       const [meta, pdf] = await Promise.all([
@@ -365,12 +371,18 @@ async function syncManifest(){
       ]);
       const clientsArr = Array.isArray(meta.clients) ? meta.clients : (meta.client ? [meta.client] : []);
       await Store.put("templates", {id:m.id, name:meta.name, fields:meta.fields, annexPhotos:meta.annexPhotos||[], optionalPages:meta.optionalPages||[], clients:clientsArr, category:meta.category||"Autre", pdf, createdAt:(cur&&cur.createdAt)||Date.now(), updatedAt:m.updatedAt||0, published:true});
+    }catch(e){
+      // One template failing to fetch (flaky connection) must never block the others,
+      // nor block cleanup below — it's simply retried on the next sync.
+      failures++; console.error("syncManifest (template "+m.id+")", e);
     }
+  }
+  try{
     for (const t of await Store.all("templates")) if (t.published && !S.manifestIndex.has(t.id)) await Store.del("templates", t.id);
-    await Store.put("meta", {k:"lastSync", v:Date.now()});
-    return {ok:true};
-  }catch(e){ console.error("syncManifest", e); return {ok:false, error:(e&&e.message)||String(e)}; }
-  finally{ S.syncing = false; }
+  }catch(e){ console.error("syncManifest (cleanup)", e); }
+  S.syncing = false;
+  await Store.put("meta", {k:"lastSync", v:Date.now()});
+  return failures ? {ok:false, error:`${failures} modèle${failures>1?"s":""} non synchronisé${failures>1?"s":""} (réessaiera automatiquement)`} : {ok:true};
 }
 
 /* ============ HOME ============ */
