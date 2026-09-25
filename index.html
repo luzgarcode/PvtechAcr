@@ -338,8 +338,15 @@ function initialsClient(name){ const w=String(name||"").replace(/[^\p{L}\s'']/gu
 
 async function saveFile(filename, bytes, mime){
   const blob = new Blob([bytes], {type:mime});
+  let file = null;
+  try{ file = new File([blob], filename, {type:mime}); }catch(e){}
+  if (file && navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:filename}); return; }
+    catch(e){ if (e && e.name === "AbortError") return; }
+  }
   const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 8000);
 }
+function canShareFiles(){ try{ return !!(navigator.canShare && navigator.canShare({files:[new File([""],"t.pdf",{type:"application/pdf"})]})); }catch(e){ return false; } }
 
 /* ============ SYNCHRONISATION DES MODÈLES ============ */
 async function fetchJson(url){ const r = await fetch(url, {cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }
@@ -583,7 +590,7 @@ async function openFill(draftId){
       <div class="btnrow" style="margin-top:10px"><button class="btn" id="addPhotos">${ICON.plus} Ajouter des photos</button></div>
       <p class="kbd">Ajoutées à la fin du PDF, deux par page, avec leur légende.</p></div></details>
   </div>
-  <div class="dock"><button class="btn" id="preview">Aperçu du PDF</button><button class="btn primary" id="gen">Télécharger le PDF</button></div>`;
+  <div class="dock"><button class="btn" id="preview">Aperçu du PDF</button><button class="btn primary" id="gen">${canShareFiles()?"Envoyer le PDF":"Télécharger le PDF"}</button></div>`;
   $("#dName").oninput = e => { d.name=e.target.value; draftChanged(); };
   $("#openAll").onclick = () => $$("#groups details").forEach(x=>x.open=true);
   $("#closeAll").onclick = () => $$("#groups details").forEach(x=>x.open=false);
@@ -831,7 +838,7 @@ async function previewPdf(){
   const done=busy("Création de l'aperçu…"); let bytes;
   try{ bytes = await buildPdf(S.tpl, S.draft); }catch(e){ done(); alert("Le PDF n'a pas pu être créé : "+(e.message||e)); return; }
   const m=document.createElement("div"); m.className="modal";
-  m.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Aperçu"><div class="sheet-h"><h3>Aperçu</h3><button class="btn sm" data-x="close">Fermer</button></div><div class="sheet-b" id="pv"></div><div class="sheet-f"><button class="btn" data-x="close">Continuer à remplir</button><button class="btn primary" data-x="dl">Télécharger le PDF</button></div></div>`;
+  m.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Aperçu"><div class="sheet-h"><h3>Aperçu</h3><button class="btn sm" data-x="close">Fermer</button></div><div class="sheet-b" id="pv"></div><div class="sheet-f"><button class="btn" data-x="close">Continuer à remplir</button><button class="btn primary" data-x="dl">${canShareFiles()?"Envoyer le PDF":"Télécharger le PDF"}</button></div></div>`;
   document.body.appendChild(m);
   m.onclick=e=>{ const a=e.target.dataset && e.target.dataset.x; if(a==="close") m.remove(); if(a==="dl") saveFile(pdfFileName(), bytes, "application/pdf"); };
   try{
