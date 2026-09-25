@@ -355,7 +355,7 @@ async function syncManifest(){
   S.syncing = true;
   let manifest; let failures = 0;
   try{
-    manifest = await fetchJson("./models/manifest.json");
+    manifest = await fetchJson("./models/manifest.json?t=" + Date.now());
   }catch(e){
     S.syncing = false; console.error("syncManifest (manifest)", e);
     return {ok:false, error:(e&&e.message)||String(e)};
@@ -366,8 +366,8 @@ async function syncManifest(){
       const cur = await Store.get("templates", m.id);
       if (cur && (cur.updatedAt||0) >= (m.updatedAt||0)) continue;
       const [meta, pdf] = await Promise.all([
-        fetchJson(`./models/${m.id}/meta.json`),
-        fetchBuf(`./models/${m.id}/${m.id}.pdf`)
+        fetchJson(`./models/${m.id}/meta.json?v=${m.updatedAt||0}`),
+        fetchBuf(`./models/${m.id}/${m.id}.pdf?v=${m.updatedAt||0}`)
       ]);
       const clientsArr = Array.isArray(meta.clients) ? meta.clients : (meta.client ? [meta.client] : []);
       await Store.put("templates", {id:m.id, name:meta.name, fields:meta.fields, annexPhotos:meta.annexPhotos||[], optionalPages:meta.optionalPages||[], clients:clientsArr, category:meta.category||"Autre", pdf, createdAt:(cur&&cur.createdAt)||Date.now(), updatedAt:m.updatedAt||0, published:true});
