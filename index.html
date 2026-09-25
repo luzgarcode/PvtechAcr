@@ -336,12 +336,12 @@ const TAXONOMY = [
 function clientDef(name){ return TAXONOMY.find(c => c.client===name); }
 function initialsClient(name){ const w=String(name||"").replace(/[^\p{L}\s'']/gu,"").trim().split(/\s+/).filter(Boolean); return (w[0]?.[0]||"").concat(w[1]?.[0]||"").toUpperCase() || "?"; }
 
-async function saveFile(filename, bytes, mime){
+async function saveFile(filename, bytes, mime, text){
   const blob = new Blob([bytes], {type:mime});
   let file = null;
   try{ file = new File([blob], filename, {type:mime}); }catch(e){}
   if (file && navigator.canShare && navigator.canShare({files:[file]})){
-    try{ await navigator.share({files:[file], title:filename}); return; }
+    try{ const payload = {files:[file], title:filename}; if (text) payload.text = text; await navigator.share(payload); return; }
     catch(e){ if (e && e.name === "AbortError") return; }
   }
   const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 8000);
@@ -844,20 +844,61 @@ async function buildPdf(tpl, draft){
   doc.setTitle(draft.name||tpl.name); doc.setProducer("PV Terrain"); doc.setCreator("PV Terrain");
   return doc.save();
 }
-function pdfFileName(){
+function siteTokens(){
   const tpl = S.tpl, draft = S.draft;
   const valOf = role => { const f = tpl.fields.find(f => f.auto === role); if (!f) return ""; const v = draft.values[f.id]; return (typeof v === "string" && v.trim()) ? v.trim() : ""; };
-  const client = valOf("site-client"), number = valOf("site-number");
+  return {client: valOf("site-client"), number: valOf("site-number")};
+}
+function pdfFileName(){
+  const tpl = S.tpl; const {client, number} = siteTokens();
   const siteToken = [client, number].filter(Boolean).join("");
   const shortName = tpl.shortName || tpl.name;
   if (siteToken) return `PV-${slug(siteToken)}-${slug(shortName)}.pdf`;
-  return slug(draft.name || tpl.name) + ".pdf";
+  return slug(S.draft.name || tpl.name) + ".pdf";
+}
+async function emailBodyFor(){
+  const tpl = S.tpl; const {client, number} = siteTokens();
+  const loc = [client, number ? "n°"+number : ""].filter(Boolean).join(" ");
+  const profile = await getProfile();
+  const signature = profile && profile.name ? `\n\nCordialement,\n${profile.name}` : "\n\nCordialement,";
+  return `Bonjour,\n\nCi-joint le PV pour ${loc || "le site"} — ${tpl.name}.${signature}`;
+}
+async function showSendReview(bytes){
+  const defaultBase = pdfFileName().replace(/\.pdf$/i, "");
+  const defaultMsg = await emailBodyFor();
+  const m=document.createElement("div"); m.className="modal";
+  m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Envoyer le PV" style="max-width:560px">
+    <div class="sheet-h"><h3>Envoyer le PV</h3></div>
+    <div class="sheet-b" style="background:var(--surface)">
+      <label class="fld"><span>Nom du fichier</span><input class="inp" id="sendName" value="${esc(defaultBase)}"></label>
+      <label class="fld" style="margin-top:12px"><span>Message</span><textarea class="inp" id="sendMsg" rows="7">${esc(defaultMsg)}</textarea></label>
+      <p class="kbd" style="margin:8px 0 0">Le message est repris si tu envoies par mail, SMS ou une appli de message ; ignoré pour un simple téléchargement.</p>
+    </div>
+    <div class="sheet-f"><button class="btn" data-x="cancel">Annuler</button><button class="btn primary" data-x="send">${canShareFiles()?"Envoyer":"Télécharger"}</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  const ni = $("#sendName", m); ni.focus(); ni.setSelectionRange(ni.value.length, ni.value.length);
+  return new Promise(resolve => {
+    m.onclick = async e => {
+      const a = e.target.dataset && e.target.dataset.x; if(!a) return;
+      if (a==="cancel"){ m.remove(); resolve(false); return; }
+      if (a==="send"){
+        let name = ($("#sendName", m).value || "").trim() || defaultBase;
+        if (!/\.pdf$/i.test(name)) name += ".pdf";
+        const msg = $("#sendMsg", m).value;
+        m.remove();
+        await saveFile(name, bytes, "application/pdf", msg);
+        resolve(true);
+      }
+    };
+  });
 }
 async function generateAndSave(){
   await flushDraft();
-  const done=busy("Création du PDF…");
-  try{ const bytes=await buildPdf(S.tpl, S.draft); done(); await saveFile(pdfFileName(), bytes, "application/pdf"); }
-  catch(e){ done(); console.error(e); alert("Le PDF n'a pas pu être créé : " + (e.message||e)); }
+  const done=busy("Création du PDF…"); let bytes;
+  try{ bytes = await buildPdf(S.tpl, S.draft); done(); }
+  catch(e){ done(); console.error(e); alert("Le PDF n'a pas pu être créé : " + (e.message||e)); return; }
+  await showSendReview(bytes);
 }
 async function previewPdf(){
   await flushDraft();
@@ -866,7 +907,7 @@ async function previewPdf(){
   const m=document.createElement("div"); m.className="modal";
   m.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Aperçu"><div class="sheet-h"><h3>Aperçu</h3><button class="btn sm" data-x="close">Fermer</button></div><div class="sheet-b" id="pv"></div><div class="sheet-f"><button class="btn" data-x="close">Continuer à remplir</button><button class="btn primary" data-x="dl">${canShareFiles()?"Envoyer le PDF":"Télécharger le PDF"}</button></div></div>`;
   document.body.appendChild(m);
-  m.onclick=e=>{ const a=e.target.dataset && e.target.dataset.x; if(a==="close") m.remove(); if(a==="dl") saveFile(pdfFileName(), bytes, "application/pdf"); };
+  m.onclick=e=>{ const a=e.target.dataset && e.target.dataset.x; if(a==="close") m.remove(); if(a==="dl"){ m.remove(); showSendReview(bytes); } };
   try{
     const pdf = await pdfjsLib.getDocument({data:bytes.slice(0), isEvalSupported:false}).promise; done();
     const host=$("#pv",m); const wAvail=Math.min(860, host.clientWidth-28);
