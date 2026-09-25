@@ -388,7 +388,7 @@ function tplClient(t){ return (t.client && clientDef(t.client)) ? t.client : "To
 function tplCategory(t){ const cd = clientDef(tplClient(t)); const c = t.category; return (cd && cd.categories.includes(c)) ? c : "Autre"; }
 async function bindDraftRows(drafts, tplName){
   $$("[data-open-draft]").forEach(b => b.onclick = () => openFill(b.dataset.openDraft));
-  $$("[data-del-draft]").forEach(b => b.onclick = async () => { const d=drafts.find(x=>x.id===b.dataset.delDraft); if(!confirm(`Supprimer le rapport « ${d.name} » ?`)) return; await Store.del("drafts", d.id); render(); });
+  $$("[data-del-draft]").forEach(b => b.onclick = async () => { const d=drafts.find(x=>x.id===b.dataset.delDraft); if(!confirm(`Supprimer le rapport « ${d.name} » ?`)) return; await Store.del("drafts", d.id); showHome(); });
 }
 function draftRowsHtml(drafts, tpls, tplName){
   return drafts.length ? drafts.map(d => {
@@ -399,7 +399,7 @@ function draftRowsHtml(drafts, tpls, tplName){
 }
 
 async function showHome(){
-  S.view="home"; S.tpl=null; S.draft=null; S.client=null; S.category=null; await homeBar();
+  S.view="home"; S.tpl=null; S.draft=null; S.client=null; S.category=null; S.searchQ=""; await homeBar();
   const [tpls, drafts, profile] = await Promise.all([Store.all("templates"), Store.all("drafts"), getProfile()]);
   drafts.sort((a,b)=>b.updatedAt-a.updatedAt);
   const tplName = id => (tpls.find(t=>t.id===id)||{}).name || "Modèle supprimé";
