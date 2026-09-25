@@ -113,6 +113,7 @@ img{ max-width:100%; }
 .client-row:hover{ background:var(--surface-2); }
 .client-ico{ background:var(--blue-soft); color:var(--blue); border:none; display:flex; align-items:center; justify-content:center; font-family:var(--font-c); font-weight:700; font-size:16px; }
 .chev{ flex:none; color:var(--ink-2); width:20px; height:20px; }
+.searchwrap{ margin:0 0 22px; }
 .row .title{}
 .empty{ padding:22px 16px; color:var(--ink-2); }
 .progress{ height:6px; background:var(--surface-2); border-radius:3px; overflow:hidden; margin-top:6px; max-width:240px; }
@@ -324,12 +325,13 @@ async function pageSizes(pdf){
 const S = { view:"home", tpl:null, draft:null, manifestIndex:new Map(), syncing:false };
 const main = $("#main"), bar = $("#bar");
 
+const CATEGORIES = ["Borne de commande","Audio","DMB","Drive","Multiservice","Pointeuse","Autre"];
 const TAXONOMY = [
-  {client:"McDonald's", categories:["Borne","Drive","Audio","Service à table","Autre"]},
-  {client:"KFC", categories:["Borne","Drive","Audio","Autre"]},
-  {client:"Burger King", categories:["Service à table"]},
-  {client:"O'Tacos", categories:["Borne","DMB","Ouverture","Autre"]},
-  {client:"Générique", categories:["Autre"]},
+  {client:"Tous clients", categories:CATEGORIES},
+  {client:"McDonald's", categories:CATEGORIES},
+  {client:"KFC", categories:CATEGORIES},
+  {client:"Burger King", categories:CATEGORIES},
+  {client:"O'Tacos", categories:CATEGORIES},
 ];
 function clientDef(name){ return TAXONOMY.find(c => c.client===name); }
 function initialsClient(name){ const w=String(name||"").replace(/[^\p{L}\s'']/gu,"").trim().split(/\s+/).filter(Boolean); return (w[0]?.[0]||"").concat(w[1]?.[0]||"").toUpperCase() || "?"; }
@@ -354,7 +356,7 @@ async function syncManifest(){
         fetchJson(`./models/${m.id}/meta.json`),
         fetchBuf(`./models/${m.id}/${m.id}.pdf`)
       ]);
-      await Store.put("templates", {id:m.id, name:meta.name, fields:meta.fields, annexPhotos:meta.annexPhotos||[], optionalPages:meta.optionalPages||[], client:meta.client||"Générique", category:meta.category||"Autre", pdf, createdAt:(cur&&cur.createdAt)||Date.now(), updatedAt:m.updatedAt||0, published:true});
+      await Store.put("templates", {id:m.id, name:meta.name, fields:meta.fields, annexPhotos:meta.annexPhotos||[], optionalPages:meta.optionalPages||[], client:meta.client||"Tous clients", category:meta.category||"Autre", pdf, createdAt:(cur&&cur.createdAt)||Date.now(), updatedAt:m.updatedAt||0, published:true});
     }
     for (const t of await Store.all("templates")) if (t.published && !S.manifestIndex.has(t.id)) await Store.del("templates", t.id);
     await Store.put("meta", {k:"lastSync", v:Date.now()});
@@ -382,7 +384,7 @@ async function saveProfile(p){ await Store.put("meta", {k:"techProfile", v:p}); 
 function profileFilled(p){ return !!(p.name || p.phone || p.email); }
 function initials(name){ const w=String(name||"").trim().split(/\s+/).filter(Boolean); return (w[0]?.[0]||"") .concat(w[1]?.[0]||"").toUpperCase() || "?"; }
 
-function tplClient(t){ return (t.client && clientDef(t.client)) ? t.client : "Générique"; }
+function tplClient(t){ return (t.client && clientDef(t.client)) ? t.client : "Tous clients"; }
 function tplCategory(t){ const cd = clientDef(tplClient(t)); const c = t.category; return (cd && cd.categories.includes(c)) ? c : "Autre"; }
 async function bindDraftRows(drafts, tplName){
   $$("[data-open-draft]").forEach(b => b.onclick = () => openFill(b.dataset.openDraft));
@@ -402,7 +404,7 @@ async function showHome(){
   drafts.sort((a,b)=>b.updatedAt-a.updatedAt);
   const tplName = id => (tpls.find(t=>t.id===id)||{}).name || "Modèle supprimé";
   const openCount = drafts.length;
-  const clients = TAXONOMY.filter(c => c.client !== "Générique" || tpls.some(t => tplClient(t)==="Générique"));
+  const clients = TAXONOMY;
   const countFor = client => tpls.filter(t => tplClient(t)===client).length;
   main.innerHTML = `
   <div class="wrap">
@@ -427,12 +429,17 @@ async function showHome(){
       <div class="stat"><b>${tpls.length}</b><span>modèle${tpls.length>1?"s":""} disponible${tpls.length>1?"s":""}</span></div>
     </div>
 
+    <div class="searchwrap"><label class="fld" style="margin:0"><span>Rechercher un modèle</span><input class="inp" id="tplSearch" type="search" inputmode="search" placeholder="Ex. McDo borne, K27, fiche…" value="${esc(S.searchQ||"")}" autocomplete="off"></label></div>
+    <div id="searchResults"></div>
+
+    <div id="normalSections" class="${S.searchQ?"hidden":""}">
     <div class="sec-h"><h2>Rapports en cours</h2></div>
     <div class="list">${draftRowsHtml(drafts, tpls, tplName)}</div>
 
     <div class="sec-h"><h2>Choisir un client</h2><button class="btn ghost sm" id="refreshBtn">${ICON.sync} Vérifier les mises à jour</button></div>
     <div class="list">${clients.map(c => `<div class="row client-row" data-client="${esc(c.client)}" role="button" tabindex="0"><div class="doc-ico client-ico">${esc(initialsClient(c.client))}</div><div class="main"><div class="name">${esc(c.client)}</div><div class="meta">${countFor(c.client)} modèle${countFor(c.client)>1?"s":""} disponible${countFor(c.client)>1?"s":""}</div></div><div class="chev">${ICON.chev}</div></div>`).join("")}</div>
     <p class="kbd" style="margin-top:18px">Tes rapports restent sur cet appareil jusqu'à ce que tu télécharges le PDF. Les modèles sont automatiquement vérifiés à l'ouverture de la page.</p>
+    </div>
   </div>`;
   $("#editProfile").onclick = () => showProfile();
   $("#profCard").addEventListener("click", e => { if (e.target.id!=="editProfile") showProfile(); });
@@ -440,6 +447,21 @@ async function showHome(){
   $("#refreshBtn").onclick = async () => { S.syncing=true; await homeBar(); S.syncError=(await syncManifest()).error||null; showHome(); };
   $$(".client-row").forEach(el => { const go=()=>showClient(el.dataset.client); el.onclick=go; el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }; });
   bindDraftRows(drafts, tplName);
+  renderSearch(tpls);
+  const si = $("#tplSearch");
+  si.oninput = () => { S.searchQ = si.value; renderSearch(tpls); $("#normalSections").classList.toggle("hidden", !!S.searchQ); };
+  si.focus({preventScroll:true}); si.setSelectionRange(si.value.length, si.value.length);
+}
+function renderSearch(tpls){
+  const box = $("#searchResults"); if(!box) return;
+  const q = (S.searchQ||"").trim().toLowerCase();
+  if (!q){ box.innerHTML = ""; return; }
+  const norm = s => String(s||"").toLowerCase();
+  const hits = tpls.filter(t => norm(t.name).includes(q) || norm(tplClient(t)).includes(q) || norm(tplCategory(t)).includes(q));
+  box.innerHTML = `<div class="sec-h"><h2>${hits.length} résultat${hits.length>1?"s":""}</h2></div>
+    <div class="list">${hits.length ? hits.map(t => `<div class="row"><div class="doc-ico"></div><div class="main"><div class="name">${esc(t.name)}</div><div class="meta">${esc(tplClient(t))} · ${esc(tplCategory(t))}</div></div>
+      <div class="acts"><button class="btn primary" data-new-draft="${t.id}">Nouveau rapport</button></div></div>`).join("") : `<div class="empty">Aucun modèle ne correspond à « ${esc(S.searchQ)} ».</div>`}</div>`;
+  $$("[data-new-draft]", box).forEach(b => b.onclick = () => newDraft(b.dataset.newDraft));
 }
 
 async function showClient(clientName){
