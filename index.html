@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>PV Terrain – remplir les PV d'installation</title>
+<title>PV &amp; Go – remplir les PV d'installation</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#17212B">
 <link rel="icon" href="./icon-192.png">
@@ -396,7 +396,7 @@ async function syncPill(){
   const txt = mins < 2 ? "à jour à l'instant" : mins < 60 ? `à jour il y a ${mins} min` : `à jour depuis le ${fmtDate(last.v)}`;
   return `<span class="rolepill" title="Les modèles sont vérifiés à chaque ouverture">${esc(txt)}</span>`;
 }
-async function homeBar(){ setBar(`<div class="mark"><i></i><span>PV Terrain</span></div>${await syncPill()}<div class="sp"></div><button class="btn sm" id="barProfile" aria-label="Mon profil">${ICON.user}<span class="hide-sm">Mon profil</span></button>`); }
+async function homeBar(){ setBar(`<div class="mark"><i></i><span>PV &amp; Go</span></div>${await syncPill()}<div class="sp"></div><button class="btn sm" id="barProfile" aria-label="Mon profil">${ICON.user}<span class="hide-sm">Mon profil</span></button>`); }
 
 const emptyProfile = () => ({name:"", phone:"", email:"", signature:null});
 async function getProfile(){ const r = await Store.get("meta","techProfile"); return (r && r.v) || emptyProfile(); }
@@ -435,7 +435,7 @@ async function showHome(){
   <div class="wrap">
     ${Store.persistent?"":`<div class="warn">Le stockage du navigateur n'est pas disponible ici : vos rapports seront perdus en fermant la page.</div>`}
     <div class="hero">
-      <div class="hero-badge">${ICON.mark}PV Terrain</div>
+      <div class="hero-badge">${ICON.mark}PV &amp; Go</div>
       <h1>Remplissez le PV sur le terrain,<br>récupérez le PDF signé.</h1>
       <p>Choisissez un client, remplissez les infos, les contrôles, les photos et les signatures directement sur le téléphone. L'appli les place dans le PDF d'origine, prêt à envoyer.</p>
     </div>
@@ -855,7 +855,7 @@ async function buildPdf(tpl, draft){
   try{ const form = doc.getForm(); for (const ff of form.getFields()) form.removeField(ff); }catch(e){}
   const opt = (tpl.optionalPages||[]).filter(i => i < pages.length && !tpl.fields.some(f => isFilled(draft.values[f.id]) && (f.page===i || (f.options||[]).some(o => o.box && o.box.page===i && draft.values[f.id]===o.label))));
   opt.sort((x,y)=>y-x).forEach(i => doc.removePage(i));
-  doc.setTitle(draft.name||tpl.name); doc.setProducer("PV Terrain"); doc.setCreator("PV Terrain");
+  doc.setTitle(draft.name||tpl.name); doc.setProducer("PV & Go"); doc.setCreator("PV & Go");
   return doc.save();
 }
 function siteTokens(){
