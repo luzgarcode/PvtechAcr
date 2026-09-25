@@ -332,6 +332,7 @@ const TAXONOMY = [
   {client:"KFC", categories:CATEGORIES},
   {client:"Burger King", categories:CATEGORIES},
   {client:"O'Tacos", categories:CATEGORIES},
+  {client:"Quick", categories:CATEGORIES},
 ];
 function clientDef(name){ return TAXONOMY.find(c => c.client===name); }
 function initialsClient(name){ const w=String(name||"").replace(/[^\p{L}\s'']/gu,"").trim().split(/\s+/).filter(Boolean); return (w[0]?.[0]||"").concat(w[1]?.[0]||"").toUpperCase() || "?"; }
