@@ -14,6 +14,7 @@
 <script src="./vendor/pdf.worker.min.js"></script>
 <script src="./vendor/pdf.min.js"></script>
 <script src="./vendor/pdf-lib.min.js"></script>
+<script src="./vendor/zxing-browser.min.js"></script>
 <style id="appstyle">
 :root{
   --paper:#EDF0F2; --surface:#FFFFFF; --surface-2:#F6F8F9; --ink:#17212B; --ink-2:#4A5763; --line:#D3DAE0;
@@ -125,8 +126,9 @@ img{ max-width:100%; }
 .searchwrap{ margin:0 0 22px; }
 .row .title{}
 .empty{ padding:22px 16px; color:var(--ink-2); }
-.progress{ height:6px; background:var(--surface-2); border-radius:3px; overflow:hidden; margin-top:6px; max-width:240px; }
-.progress b{ display:block; height:100%; background:var(--ok); }
+.progress{ position:relative; height:18px; background:var(--surface-2); border-radius:9px; overflow:hidden; margin-top:6px; max-width:240px; }
+.progress b{ display:block; height:100%; background:var(--ok); border-radius:9px; }
+.progress-label{ position:absolute; inset:0; z-index:1; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:var(--ink); }
 
 /* editor */
 .editor{ display:flex; flex-direction:column; height:calc(100vh - 56px); height:calc(100dvh - 56px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); }
@@ -186,6 +188,9 @@ textarea.inp, .panel textarea{ min-height:84px; resize:vertical; }
 .fill-head{ display:grid; gap:10px; margin:6px 0 16px; }
 .fill-head .inp{ font-size:18px; font-weight:600; }
 .fill-stats{ display:flex; align-items:center; gap:12px; color:var(--ink-2); font-size:14px; flex-wrap:wrap; }
+.pbar{ position:relative; flex:1 1 160px; min-width:140px; height:30px; background:var(--surface-2); border:1px solid var(--line); border-radius:999px; overflow:hidden; }
+.pbar-fill{ position:absolute; inset:0; width:0%; background:var(--vis); border-radius:999px; transition:width .35s ease; }
+.pbar-label{ position:relative; z-index:1; display:flex; align-items:center; justify-content:center; height:100%; font-weight:700; font-size:13px; color:var(--ink); }
 .grp{ background:var(--surface); border:1px solid var(--line); border-radius:var(--r); margin-bottom:10px; }
 .grp > summary{ list-style:none; cursor:pointer; display:flex; align-items:center; gap:10px; padding:14px 14px; font-weight:700; font-size:17px; }
 .grp > summary::-webkit-details-marker{ display:none; }
@@ -227,6 +232,22 @@ textarea.inp, .panel textarea{ min-height:84px; resize:vertical; }
 .sig-pad{ width:100%; height:min(46vh,320px); background:#fff; border:1px solid var(--line); border-radius:6px; touch-action:none; display:block; }
 .sig-line{ position:relative; }
 .sig-line::after{ content:"Signez ici"; position:absolute; left:16px; right:16px; bottom:22%; border-top:1.5px dashed #9AA6B1; color:#9AA6B1; font-size:12px; padding-top:2px; pointer-events:none; }
+
+.scanrow{ display:flex; gap:8px; align-items:center; }
+.scanrow .inp{ flex:1; min-width:0; }
+.scanbtn{ flex:0 0 auto; padding:0 10px; }
+.scan-sheet{ max-width:460px; }
+.scan-body{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+.scan-frame{ position:relative; width:100%; max-width:400px; aspect-ratio:4/3; background:#000; border-radius:8px; overflow:hidden; }
+.scan-video{ width:100%; height:100%; object-fit:cover; display:block; }
+.scan-guide{ position:absolute; inset:16% 8%; border:2px solid var(--vis); border-radius:6px; pointer-events:none; }
+.scan-msg{ text-align:center; margin:0; }
+.scan-torch{ position:absolute; top:10px; right:10px; z-index:2; width:38px; height:38px; padding:0; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(20,24,30,.55); border-color:transparent; color:#fff; }
+.scan-torch[hidden]{ display:none; }
+.scan-torch svg{ width:18px; height:18px; }
+.scan-torch.on{ background:var(--vis); color:#221a00; }
+.scan-focus-ring{ position:absolute; width:56px; height:56px; margin-left:-28px; margin-top:-28px; border:2px solid #fff; border-radius:50%; pointer-events:none; animation:focusring .6s ease-out forwards; }
+@keyframes focusring{ 0%{ transform:scale(1.3); opacity:1; } 100%{ transform:scale(1); opacity:0; } }
 
 .toast{ position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); background:var(--ink); color:var(--paper); padding:10px 16px; border-radius:6px; z-index:60; font-weight:600; max-width:90vw; }
 .busy{ position:fixed; inset:0; z-index:70; background:rgba(10,15,20,.45); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:18px; }
@@ -300,6 +321,8 @@ const ICON = {
   zout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l5 5M7 10h6"/></svg>',
   chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
   logout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>',
+  barcode:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M7 8v8M10 8v8M13 8v3M13 14v2M16 8v8"/></svg>',
+  flash:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>',
 };
 const TYPES = {
   text:{label:"Texte", def:[150,16]}, multiline:{label:"Paragraphe", def:[260,50]}, date:{label:"Date", def:[90,16]},
@@ -470,9 +493,15 @@ function tplClients(t){
 }
 function templatesForClient(tpls, clientName){ return clientName==="Tous clients" ? tpls : tpls.filter(t => tplClients(t).includes(clientName)); }
 function tplCategory(t){ const c = t.category; return CATEGORIES.includes(c) ? c : "Autre"; }
-const CATEGORY_ICONS = { "Borne de commande": "assets/logos/borne-k22.png" };
+const CATEGORY_ICONS = { "Borne de commande": "assets/logos/borne-k22.png", "Pointeuse": "assets/logos/pointeuse.png" };
 function categoryIconHtml(cat){
   const icon = CATEGORY_ICONS[cat];
+  if (icon) return `<div class="doc-ico doc-ico-img"><img src="${esc(icon)}" alt="" loading="lazy"></div>`;
+  return `<div class="doc-ico"></div>`;
+}
+const TEMPLATE_ICONS = { "tpl-fe1ced90": "assets/logos/pointeuse.png", "tpl-o22k27": "assets/logos/k27-otacos.png", "tpl-f9c787bb": "assets/logos/doublecheck.png" };
+function templateIconHtml(t){
+  const icon = TEMPLATE_ICONS[t.id];
   if (icon) return `<div class="doc-ico doc-ico-img"><img src="${esc(icon)}" alt="" loading="lazy"></div>`;
   return `<div class="doc-ico"></div>`;
 }
@@ -483,7 +512,7 @@ async function bindDraftRows(drafts, tplName){
 function draftRowsHtml(drafts, tpls, tplName){
   return drafts.length ? drafts.map(d => {
     const tpl = tpls.find(t=>t.id===d.templateId); const tot = tpl ? tpl.fields.length : 0; const n = countFilled(d, tpl);
-    return `<div class="row"><div class="doc-ico filled"></div><div class="main"><div class="name">${esc(d.name)}</div><div class="meta">${esc(tplName(d.templateId))} · modifié le ${fmtDate(d.updatedAt)}</div>${tot?`<div class="progress" title="${n} sur ${tot} zones remplies"><b style="width:${Math.round(100*n/tot)}%"></b></div>`:""}</div>
+    return `<div class="row"><div class="doc-ico filled"></div><div class="main"><div class="name">${esc(d.name)}</div><div class="meta">${esc(tplName(d.templateId))} · modifié le ${fmtDate(d.updatedAt)}</div>${tot?`<div class="progress" title="${n} sur ${tot} zones remplies"><b style="width:${Math.round(100*n/tot)}%"></b><span class="progress-label">${n} / ${tot}</span></div>`:""}</div>
     <div class="acts"><button class="btn primary" data-open-draft="${d.id}">Reprendre</button><button class="btn danger ghost" data-del-draft="${d.id}">Supprimer</button></div></div>`;}).join("")
     : `<div class="empty">Aucun rapport en cours.</div>`;
 }
@@ -548,7 +577,7 @@ function renderSearch(tpls){
   const norm = s => String(s||"").toLowerCase();
   const hits = tpls.filter(t => norm(t.name).includes(q) || tplClients(t).some(c => norm(c).includes(q)) || norm(tplCategory(t)).includes(q));
   box.innerHTML = `<div class="sec-h"><h2>${hits.length} résultat${hits.length>1?"s":""}</h2></div>
-    <div class="list">${hits.length ? hits.map(t => `<div class="row"><div class="doc-ico"></div><div class="main"><div class="name">${esc(t.name)}</div><div class="meta">${esc(tplClients(t).join(", "))} · ${esc(tplCategory(t))}</div></div>
+    <div class="list">${hits.length ? hits.map(t => `<div class="row">${templateIconHtml(t)}<div class="main"><div class="name">${esc(t.name)}</div><div class="meta">${esc(tplClients(t).join(", "))} · ${esc(tplCategory(t))}</div></div>
       <div class="acts"><button class="btn primary" data-new-draft="${t.id}">Nouveau rapport</button></div></div>`).join("") : `<div class="empty">Aucun modèle ne correspond à « ${esc(S.searchQ)} ».</div>`}</div>`;
   $$("[data-new-draft]", box).forEach(b => b.onclick = () => newDraft(b.dataset.newDraft));
 }
@@ -579,7 +608,7 @@ async function showCategory(clientName, categoryName){
   tpls.sort((a,b)=>a.name.localeCompare(b.name,"fr"));
   main.innerHTML = `<div class="wrap">
     <div class="sec-h"><h2>${esc(clientName)} · ${esc(categoryName)}</h2></div>
-    <div class="list">${tpls.length ? tpls.map(t => `<div class="row"><div class="doc-ico"></div><div class="main"><div class="name">${esc(t.name)}</div><div class="meta">${clientName==="Tous clients"?`${esc(tplClients(t).join(", "))} · `:""}${t.fields.length} zone${t.fields.length>1?"s":""} à remplir${t.annexPhotos&&t.annexPhotos.length?` · ${t.annexPhotos.length} photo${t.annexPhotos.length>1?"s":""} demandée${t.annexPhotos.length>1?"s":""}`:""}</div></div>
+    <div class="list">${tpls.length ? tpls.map(t => `<div class="row">${templateIconHtml(t)}<div class="main"><div class="name">${esc(t.name)}</div><div class="meta">${clientName==="Tous clients"?`${esc(tplClients(t).join(", "))} · `:""}${t.fields.length} zone${t.fields.length>1?"s":""} à remplir${t.annexPhotos&&t.annexPhotos.length?` · ${t.annexPhotos.length} photo${t.annexPhotos.length>1?"s":""} demandée${t.annexPhotos.length>1?"s":""}`:""}</div></div>
       <div class="acts"><button class="btn primary" data-new-draft="${t.id}">Nouveau rapport</button></div></div>`).join("") : `<div class="empty">Aucun modèle pour l'instant dans cette rubrique.</div>`}</div>
   </div>`;
   $$("[data-new-draft]").forEach(b => b.onclick = () => newDraft(b.dataset.newDraft));
@@ -696,7 +725,7 @@ async function openFill(draftId){
   main.innerHTML = `<div class="fill">
     <div class="fill-head">
       <label class="fld" style="margin:0"><span>Nom du rapport</span><input class="inp" id="dName" value="${esc(d.name)}"></label>
-      <div class="fill-stats"><span id="stat"></span><button class="btn sm ghost" id="openAll">Tout déplier</button><button class="btn sm ghost" id="closeAll">Tout replier</button></div>
+      <div class="fill-stats"><div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${tpl.fields.length}" aria-valuenow="0" aria-label="Zones remplies"><div class="pbar-fill" id="statFill"></div><span class="pbar-label" id="stat"></span></div><button class="btn sm ghost" id="openAll">Tout déplier</button><button class="btn sm ghost" id="closeAll">Tout replier</button></div>
     </div>
     <div id="groups">${[...groups.entries()].map(([g,fs],gi)=>groupHtml(g,fs,gi)).join("")}</div>
     <details class="grp" open id="annexGrp"><summary><span class="t">Photos jointes au PV</span><span class="cnt" id="annexCnt"></span></summary>
@@ -725,11 +754,15 @@ function groupHtml(g, fs, gi){
     ${hasChoice?`<div class="btnrow" style="padding-top:10px"><button class="btn sm" data-allfirst>Tout à « ${esc((fs.find(f=>f.type==="choice").options[0]||{}).label||"")} » (cases vides)</button><button class="btn sm ghost" data-clear>Vider la rubrique</button></div>`:""}
     ${fs.map(f=>fieldHtml(f)).join("")}</div></details>`;
 }
+function isSerialField(f){ return f.type==="text" && /s[ée]rie|serial/i.test(f.label||""); }
 function fieldHtml(f){
   const v = S.draft.values[f.id]; const id="in_"+f.id;
   let w="";
   switch(f.type){
-    case "text": w=`<input class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" autocomplete="off">`; break;
+    case "text": w = isSerialField(f)
+      ? `<div class="scanrow"><input class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" autocomplete="off"><button type="button" class="btn sm scanbtn" data-scan="${f.id}" aria-label="Scanner un code-barres">${ICON.barcode}</button></div>`
+      : `<input class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" autocomplete="off">`;
+      break;
     case "multiline": w=`<textarea class="inp" id="${id}" data-f="${f.id}" rows="3">${esc(v||"")}</textarea>`; break;
     case "date": w=`<div class="btnrow"><input type="date" class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" style="max-width:200px"><button class="btn sm" data-today="${f.id}">Aujourd'hui</button></div>`; break;
     case "time": w=`<div class="btnrow"><input type="time" class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" style="max-width:150px"><button class="btn sm" data-now="${f.id}">Maintenant</button></div>`; break;
@@ -751,7 +784,8 @@ function draftChanged(){ const ss=$("#ss"); if(ss) ss.textContent="Modifications
 function setVal(fid, v){ if(isFilled(v)) S.draft.values[fid]=v; else delete S.draft.values[fid]; draftChanged(); }
 function updateStats(){
   const tot=S.tpl.fields.length, n=countFilled(S.draft,S.tpl);
-  const st=$("#stat"); if(st) st.textContent = `${n} / ${tot} zones remplies`;
+  const st=$("#stat"); if(st) st.textContent = `${n} / ${tot}`;
+  const sf=$("#statFill"); if(sf){ sf.style.width = `${tot ? Math.round(n/tot*100) : 0}%`; const bar=sf.closest(".pbar"); if(bar) bar.setAttribute("aria-valuenow", n); }
   $$("#groups details").forEach(det => {
     const ids = $$(".q", det).map(q=>q.dataset.q); const k = ids.filter(id=>isFilled(S.draft.values[id])).length;
     const c=$("[data-cnt]", det); c.textContent=`${k}/${ids.length}`; c.classList.toggle("done", k===ids.length);
@@ -770,6 +804,7 @@ function bindFill(){
     if (b.dataset.clearf){ setVal(b.dataset.clearf, ""); refreshField(b.dataset.clearf); return; }
     if (b.dataset.photo){ S.photoTarget=b.dataset.photo; $("#pickImg").click(); return; }
     if (b.dataset.sign){ const fid=b.dataset.sign; const f=S.tpl.fields.find(x=>x.id===fid); const png=await signaturePad(f.label, f.w/f.h); if(png){ setVal(fid, png); refreshField(fid); } return; }
+    if (b.dataset.scan){ const fid=b.dataset.scan; const val=await scanBarcode(); if(val){ setVal(fid, val); refreshField(fid); $("#in_"+fid)?.focus(); } return; }
     const det = b.closest("details");
     if (b.hasAttribute("data-allfirst")){ let n=0; $$(".q", det).forEach(q=>{ const f=S.tpl.fields.find(x=>x.id===q.dataset.q); if(f.type==="choice" && !isFilled(S.draft.values[f.id]) && f.options[0]){ S.draft.values[f.id]=f.options[0].label; refreshField(f.id); n++; } }); draftChanged(); toast(n?`${n} réponse${n>1?"s":""} remplie${n>1?"s":""}`:"Rien à remplir ici"); return; }
     if (b.hasAttribute("data-clear")){ if(!confirm("Vider toutes les réponses de cette rubrique ?")) return; $$(".q", det).forEach(q=>{ delete S.draft.values[q.dataset.q]; refreshField(q.dataset.q); }); draftChanged(); return; }
@@ -872,6 +907,60 @@ function trimCanvas(c){
   const pad=6; x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad); x1=Math.min(w-1,x1+pad); y1=Math.min(h-1,y1+pad);
   const o=document.createElement("canvas"); o.width=x1-x0+1; o.height=y1-y0+1; o.getContext("2d").drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);
   return o.toDataURL("image/png");
+}
+
+/* ---- barcode scanner ---- */
+function barcodeSupported(){ return !!(window.ZXingBrowser && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+function scanBarcode(){
+  return new Promise(resolve => {
+    if (!barcodeSupported()){ toast("Scanner indisponible sur cet appareil"); resolve(null); return; }
+    const m=document.createElement("div"); m.className="modal scan-modal";
+    m.innerHTML=`<div class="sheet scan-sheet" role="dialog" aria-modal="true" aria-label="Scanner un code-barres">
+      <div class="sheet-h"><h3 style="font-size:18px">Scanner un code-barres</h3><button class="btn sm ghost" data-x="cancel" aria-label="Fermer">✕</button></div>
+      <div class="sheet-b scan-body">
+        <div class="scan-frame"><video class="scan-video" playsinline muted autoplay></video><div class="scan-guide"></div><button type="button" class="scan-torch" data-x="torch" aria-label="Activer le flash" hidden>${ICON.flash}</button></div>
+        <p class="kbd scan-msg" id="scanMsg">Visez le code-barres avec la caméra… touchez l'image pour faire la mise au point.</p>
+      </div>
+      <div class="sheet-f"><button class="btn" data-x="cancel">Annuler</button></div></div>`;
+    document.body.appendChild(m);
+    const video=$("video",m), msg=$("#scanMsg",m), torchBtn=$(".scan-torch",m), frame=$(".scan-frame",m);
+    let controls=null, done=false, torchOn=false, torchBusy=false;
+    const close=v=>{ if(done) return; done=true; try{ controls && controls.stop(); }catch(e){} m.remove(); resolve(v); };
+    let reader;
+    try{ reader = new ZXingBrowser.BrowserMultiFormatReader(); }
+    catch(e){ toast("Scanner indisponible sur cet appareil"); m.remove(); resolve(null); return; }
+    reader.decodeFromVideoDevice(undefined, video, (result) => { if (result && !done) close(result.getText()); })
+      .then(c => {
+        controls=c;
+        try{
+          const caps = c.streamVideoCapabilitiesGet && c.streamVideoCapabilitiesGet();
+          if (caps && caps.torch && c.switchTorch) torchBtn.hidden=false;
+        }catch(e){}
+      })
+      .catch(e => { msg.textContent = e && e.name==="NotAllowedError" ? "Accès à la caméra refusé." : e && e.name==="NotFoundError" ? "Aucune caméra détectée sur cet appareil." : "Impossible d'ouvrir la caméra."; });
+    const focusRing = (x,y) => { const r=document.createElement("div"); r.className="scan-focus-ring"; r.style.left=x+"px"; r.style.top=y+"px"; frame.appendChild(r); setTimeout(()=>r.remove(), 650); };
+    frame.addEventListener("click", e => {
+      if (e.target.closest(".scan-torch")) return;
+      const rect=video.getBoundingClientRect();
+      focusRing(e.clientX-rect.left, e.clientY-rect.top);
+      if (!controls || !controls.streamVideoConstraintsApply) return;
+      const x=(e.clientX-rect.left)/rect.width, y=(e.clientY-rect.top)/rect.height;
+      try{
+        const p = controls.streamVideoConstraintsApply({ advanced:[{ pointsOfInterest:[{x,y}], focusMode:"single-shot" }] });
+        if (p && p.catch) p.catch(() => {
+          try{ const p2=controls.streamVideoConstraintsApply({ advanced:[{ focusMode:"single-shot" }] }); if (p2 && p2.catch) p2.catch(()=>{}); }catch(e2){}
+        });
+      }catch(err){}
+    });
+    m.onclick=e=>{ const a=e.target.dataset && (e.target.dataset.x || e.target.closest("[data-x]")?.dataset.x); if(!a) return;
+      if(a==="cancel") close(null);
+      if(a==="torch"){
+        if (!controls || !controls.switchTorch || torchBusy) return;
+        torchBusy=true; const next=!torchOn;
+        controls.switchTorch(next).then(()=>{ torchOn=next; torchBtn.classList.toggle("on", torchOn); }).catch(()=>{}).finally(()=>{ torchBusy=false; });
+      }
+    };
+  });
 }
 
 /* ============ PDF GENERATION ============ */
@@ -1057,6 +1146,9 @@ async function generateAndSave(){
   catch(e){ done(); console.error(e); alert("Le PDF n'a pas pu être créé : " + (e.message||e)); return; }
   await showSendReview(bytes);
 }
+/* ============ CALIBRAGE DES CHAMPS (site de test uniquement) ============ */
+
+
 async function previewPdf(){
   await flushDraft();
   const done=busy("Création de l'aperçu…"); let bytes;
@@ -1094,6 +1186,7 @@ function isAuthed(){
   }catch(e){ return false; }
 }
 function setAuthed(){ try{ localStorage.setItem(AUTH_KEY,"1"); localStorage.setItem(AUTH_AT_KEY, String(Date.now())); }catch(e){} }
+
 function showLogin(onSuccess){
   const overlay = document.createElement("div");
   overlay.id = "loginOverlay";
