@@ -895,10 +895,8 @@ async function emailSubjectFor(){
 async function emailBodyFor(){
   const tpl = S.tpl; const loc = locFor(tpl);
   const profile = await getProfile();
-  const sector = sectorInfo(profile.secteur);
   const signature = profile && profile.name ? `\n\nCordialement,\n${profile.name}` : "\n\nCordialement,";
-  const header = sector.destEmail ? `À : ${sector.destEmail}\nObjet : ${sector.tag} PV${loc?` ${loc}`:""} — ${tpl.name}\n\n` : "";
-  return `${header}Bonjour,\n\nCi-joint le PV pour ${loc || "le site"} — ${tpl.name}.${signature}`;
+  return `Bonjour,\n\nCi-joint le PV pour ${loc || "le site"} — ${tpl.name}.${signature}`;
 }
 async function showSendReview(bytes){
   const defaultBase = pdfFileName().replace(/\.pdf$/i, "");
