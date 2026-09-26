@@ -186,6 +186,12 @@ textarea.inp, .panel textarea{ min-height:84px; resize:vertical; }
 .cnt{ font-size:13px; font-weight:600; color:var(--ink-2); background:var(--surface-2); border-radius:20px; padding:2px 9px; white-space:nowrap; }
 .cnt.done{ background:var(--ok-soft); color:var(--ok); }
 .grp-body{ padding:4px 14px 14px; border-top:1px solid var(--line); }
+.pv-thumb{ margin:12px 0 4px; }
+.pv-thumb-ph{ display:flex; align-items:center; justify-content:center; height:90px; border:1px dashed var(--line); border-radius:var(--r); color:var(--ink-2); font-size:13px; background:var(--surface-2); }
+.pv-thumb-wrap{ position:relative; width:100%; border:1px solid var(--line); border-radius:var(--r); overflow:hidden; background:var(--surface-2); }
+.pv-thumb-canvas{ display:block; width:100%; height:auto; }
+.pv-thumb-rect{ position:absolute; border:2px solid rgba(29,79,124,.65); background:rgba(29,79,124,.12); border-radius:2px; pointer-events:none; transition:background .15s,border-color .15s,box-shadow .15s; }
+.pv-thumb-rect.active{ border-color:var(--vis); background:rgba(245,183,0,.32); box-shadow:0 0 0 3px rgba(245,183,0,.28); z-index:1; }
 .q{ padding:10px 0; border-bottom:1px dashed var(--line); }
 .q:last-child{ border-bottom:0; }
 .q > label, .q > .ql{ display:block; font-weight:600; font-size:15px; margin-bottom:6px; }
@@ -319,6 +325,92 @@ async function loadPdfJs(tpl){
 }
 async function pageSizes(pdf){
   const out=[]; for (let i=1;i<=pdf.numPages;i++){ const pg=await pdf.getPage(i); const v=pg.getViewport({scale:1}); out.push([v.width, v.height]); } return out;
+}
+
+/* ============ Repère visuel (vignette PDF par groupe) ============ */
+const pageCanvasCache = new Map();
+const pageSizeCache = new Map();
+async function getPageSize(tpl, pageIndex){
+  const key = tpl.id + ":sz:" + pageIndex;
+  if (pageSizeCache.has(key)) return pageSizeCache.get(key);
+  const p = (async () => { const pdf = await loadPdfJs(tpl); const pg = await pdf.getPage(pageIndex+1); const v = pg.getViewport({scale:1}); return [v.width, v.height]; })();
+  pageSizeCache.set(key, p); return p;
+}
+async function getPageCanvas(tpl, pageIndex){
+  const key = tpl.id + ":cv:" + pageIndex;
+  if (pageCanvasCache.has(key)) return pageCanvasCache.get(key);
+  const p = (async () => {
+    const pdf = await loadPdfJs(tpl);
+    const page = await pdf.getPage(pageIndex+1);
+    const scale = 2.5;
+    const viewport = page.getViewport({scale});
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+    await page.render({canvasContext:canvas.getContext("2d"), viewport}).promise;
+    return {canvas, scale};
+  })();
+  pageCanvasCache.set(key, p); return p;
+}
+function groupPageAndFields(fs){
+  const counts = new Map();
+  for (const f of fs) counts.set(f.page, (counts.get(f.page)||0)+1);
+  let page = fs[0].page, best = -1;
+  for (const [p,c] of counts) if (c > best){ best = c; page = p; }
+  return {page, fields: fs.filter(f => f.page === page)};
+}
+function groupBBox(fields, pageW, pageH){
+  const PAD = 36, MINW = 260, MINH = 160;
+  let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+  for (const f of fields){
+    minX = Math.min(minX, f.x); minY = Math.min(minY, f.y);
+    maxX = Math.max(maxX, f.x+(f.w||8)); maxY = Math.max(maxY, f.y+(f.h||8));
+  }
+  minX -= PAD; minY -= PAD; maxX += PAD; maxY += PAD;
+  if (maxX-minX < MINW){ const extra=(MINW-(maxX-minX))/2; minX-=extra; maxX+=extra; }
+  if (maxY-minY < MINH){ const extra=(MINH-(maxY-minY))/2; minY-=extra; maxY+=extra; }
+  minX = Math.max(0, minX); minY = Math.max(0, minY);
+  maxX = Math.min(pageW, maxX); maxY = Math.min(pageH, maxY);
+  return {x:minX, y:minY, w:Math.max(1,maxX-minX), h:Math.max(1,maxY-minY)};
+}
+async function renderGroupThumb(tpl, fs, container){
+  const {page, fields} = groupPageAndFields(fs);
+  const [pw, ph] = await getPageSize(tpl, page);
+  const bbox = groupBBox(fields, pw, ph);
+  const {canvas: pageCanvas, scale} = await getPageCanvas(tpl, page);
+  const sx = bbox.x*scale, sy = bbox.y*scale, sw = bbox.w*scale, sh = bbox.h*scale;
+  const out = document.createElement("canvas");
+  out.width = Math.max(1,Math.round(sw)); out.height = Math.max(1,Math.round(sh));
+  out.className = "pv-thumb-canvas";
+  out.getContext("2d").drawImage(pageCanvas, sx, sy, sw, sh, 0, 0, out.width, out.height);
+  const wrap = document.createElement("div"); wrap.className = "pv-thumb-wrap";
+  wrap.appendChild(out);
+  for (const f of fields){
+    const rx = (f.x-bbox.x)/bbox.w*100, ry = (f.y-bbox.y)/bbox.h*100;
+    const rw = Math.max((f.w||8)/bbox.w*100, 2), rh = Math.max((f.h||8)/bbox.h*100, 2);
+    const r = document.createElement("div"); r.className = "pv-thumb-rect"; r.dataset.fov = f.id;
+    r.style.left = rx+"%"; r.style.top = ry+"%"; r.style.width = rw+"%"; r.style.height = rh+"%";
+    wrap.appendChild(r);
+  }
+  container.innerHTML = ""; container.appendChild(wrap);
+}
+function bindGroupThumbs(tpl, groups){
+  const rendered = new WeakSet();
+  const doRender = async det => {
+    if (rendered.has(det)) return; rendered.add(det);
+    const g = det.dataset.g; const fs = groups.get(g) || [];
+    const container = $(".pv-thumb", det); if (!container || !fs.length) return;
+    try{ await renderGroupThumb(tpl, fs, container); }
+    catch(e){ console.error("pv-thumb", g, e); container.remove(); }
+  };
+  $$("#groups details").forEach(det => {
+    det.addEventListener("toggle", () => { if (det.open) doRender(det); });
+    if (det.open) doRender(det);
+  });
+}
+function highlightField(fid){
+  $$(".pv-thumb-rect.active").forEach(r => r.classList.remove("active"));
+  if (!fid) return;
+  $$(`.pv-thumb-rect[data-fov="${fid}"]`).forEach(r => r.classList.add("active"));
 }
 
 /* ============ app state ============ */
@@ -643,12 +735,13 @@ async function openFill(draftId){
   $("#addPhotos").onclick = () => { S.annexTarget=null; $("#pickImgs").click(); };
   $("#preview").onclick = () => previewPdf();
   $("#gen").onclick = () => generateAndSave();
-  bindFill(); renderAnnex(); updateStats();
+  bindFill(); renderAnnex(); updateStats(); bindGroupThumbs(tpl, groups);
 }
 function groupHtml(g, fs, gi){
   const hasChoice = fs.some(f=>f.type==="choice");
   return `<details class="grp" data-g="${esc(g)}" ${gi===0?"open":""}><summary><span class="t">${esc(g)}</span><span class="cnt" data-cnt></span></summary>
     <div class="grp-body">
+    <div class="pv-thumb"><div class="pv-thumb-ph">Aperçu du PDF…</div></div>
     ${hasChoice?`<div class="btnrow" style="padding-top:10px"><button class="btn sm" data-allfirst>Tout à « ${esc((fs.find(f=>f.type==="choice").options[0]||{}).label||"")} » (cases vides)</button><button class="btn sm ghost" data-clear>Vider la rubrique</button></div>`:""}
     ${fs.map(f=>fieldHtml(f)).join("")}</div></details>`;
 }
@@ -688,6 +781,8 @@ function updateStats(){
 function bindFill(){
   const G = $("#groups");
   G.addEventListener("input", e => { const fid=e.target.dataset.f; if(!fid) return; const f=S.tpl.fields.find(x=>x.id===fid); setVal(fid, f.type==="check" ? e.target.checked : e.target.value); });
+  G.addEventListener("focusin", e => { const fid=e.target.dataset.f; if(fid) highlightField(fid); });
+  G.addEventListener("click", e => { const q=e.target.closest(".q"); if(q) highlightField(q.dataset.q); }, true);
   G.addEventListener("click", async e => {
     const b = e.target.closest("button"); if(!b) return;
     if (b.dataset.choice){ const fid=b.dataset.choice; const cur=S.draft.values[fid]; setVal(fid, cur===b.dataset.val ? "" : b.dataset.val); refreshField(fid); return; }
