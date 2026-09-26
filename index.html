@@ -337,12 +337,12 @@ const TAXONOMY = [
 function clientDef(name){ return TAXONOMY.find(c => c.client===name); }
 function initialsClient(name){ const w=String(name||"").replace(/[^\p{L}\s'']/gu,"").trim().split(/\s+/).filter(Boolean); return (w[0]?.[0]||"").concat(w[1]?.[0]||"").toUpperCase() || "?"; }
 
-async function saveFile(filename, bytes, mime, text){
+async function saveFile(filename, bytes, mime, text, shareTitle){
   const blob = new Blob([bytes], {type:mime});
   let file = null;
   try{ file = new File([blob], filename, {type:mime}); }catch(e){}
   if (file && navigator.canShare && navigator.canShare({files:[file]})){
-    try{ const payload = {files:[file], title:filename}; if (text) payload.text = text; await navigator.share(payload); return; }
+    try{ const payload = {files:[file], title:shareTitle||filename}; if (text) payload.text = text; await navigator.share(payload); return; }
     catch(e){ if (e && e.name === "AbortError") return; }
   }
   const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 8000);
@@ -399,7 +399,14 @@ async function syncPill(){
 }
 async function homeBar(){ setBar(`<div class="mark"><i></i><span>PV &amp; Go</span></div>${await syncPill()}<div class="sp"></div><button class="btn sm" id="barProfile" aria-label="Mon profil">${ICON.user}<span class="hide-sm">Mon profil</span></button>`); }
 
-const emptyProfile = () => ({name:"", phone:"", email:"", signature:null});
+const emptyProfile = () => ({name:"", phone:"", email:"", signature:null, secteur:""});
+const SECTORS = {
+  "":      {label:"", tag:"", destEmail:""},
+  "Ouest": {label:"Secteur Ouest", tag:"#OUEST", destEmail:"coordination.nord@acrelec.com"},
+  "Est":   {label:"Secteur Est",   tag:"#Est",   destEmail:"coordination.nord@acrelec.com"},
+  "Idf":   {label:"Secteur Idf",   tag:"#Idf",   destEmail:"coordination.nord@acrelec.com"},
+};
+function sectorInfo(secteur){ return SECTORS[secteur||""] || SECTORS[""]; }
 async function getProfile(){ const r = await Store.get("meta","techProfile"); return (r && r.v) || emptyProfile(); }
 async function saveProfile(p){ await Store.put("meta", {k:"techProfile", v:p}); }
 function profileFilled(p){ return !!(p.name || p.phone || p.email); }
@@ -535,6 +542,12 @@ async function showProfile(){
       <div class="q"><label for="pfName">Nom complet</label><input class="inp" id="pfName" value="${esc(p.name)}" placeholder="Ex. Jean Dupré" autocomplete="name"></div>
       <div class="q"><label for="pfPhone">Téléphone</label><input class="inp" id="pfPhone" type="tel" value="${esc(p.phone)}" placeholder="06 12 34 56 78" autocomplete="tel"></div>
       <div class="q"><label for="pfEmail">Email</label><input class="inp" id="pfEmail" type="email" value="${esc(p.email)}" placeholder="jean.dupre@exemple.fr" autocomplete="email"></div>
+      <div class="q"><label for="pfSecteur">Secteur</label><select class="inp" id="pfSecteur">
+        <option value="" ${!p.secteur?"selected":""}>— Sélectionner —</option>
+        <option value="Ouest" ${p.secteur==="Ouest"?"selected":""}>Secteur Ouest</option>
+        <option value="Est" ${p.secteur==="Est"?"selected":""}>Secteur Est</option>
+        <option value="Idf" ${p.secteur==="Idf"?"selected":""}>Secteur Idf</option>
+      </select><p class="kbd" style="margin:6px 0 0">Détermine où envoyer tes PV et le tag ajouté dans le message (ex. #OUEST).</p></div>
       <div class="q"><div class="ql">Signature</div><div class="media">${p.signature?`<img class="sig-prev" src="${p.signature}" alt="Signature enregistrée">`:""}<button class="btn sm" id="pfSign">${p.signature?"Refaire la signature":"Enregistrer ma signature"}</button>${p.signature?`<button class="btn sm ghost danger" id="pfSignClear">Effacer</button>`:""}</div></div>
     </div>
     <div class="divider"></div>
@@ -544,9 +557,9 @@ async function showProfile(){
       <button class="btn" id="hardResync">Forcer une resynchronisation complète</button>
     </div>
   </div>`;
-  const save = debounce(async () => { const cur = await getProfile(); await saveProfile({...cur, name:$("#pfName").value.trim(), phone:$("#pfPhone").value.trim(), email:$("#pfEmail").value.trim()}); const ss=$("#ss"); if(ss) ss.textContent="Enregistré"; }, 400);
+  const save = debounce(async () => { const cur = await getProfile(); await saveProfile({...cur, name:$("#pfName").value.trim(), phone:$("#pfPhone").value.trim(), email:$("#pfEmail").value.trim(), secteur:$("#pfSecteur").value}); const ss=$("#ss"); if(ss) ss.textContent="Enregistré"; }, 400);
   const dirty = () => { const ss=$("#ss"); if(ss) ss.textContent="Modifications…"; save(); };
-  $("#pfName").oninput = dirty; $("#pfPhone").oninput = dirty; $("#pfEmail").oninput = dirty;
+  $("#pfName").oninput = dirty; $("#pfPhone").oninput = dirty; $("#pfEmail").oninput = dirty; $("#pfSecteur").onchange = dirty;
   $("#pfSign").onclick = async () => { const png = await signaturePad("Ma signature", 3); if (png){ const cur = await getProfile(); await saveProfile({...cur, signature:png}); showProfile(); } };
   if ($("#pfSignClear")) $("#pfSignClear").onclick = async () => { const cur = await getProfile(); await saveProfile({...cur, signature:null}); showProfile(); };
   $("#hardResync").onclick = async () => {
@@ -871,16 +884,26 @@ function pdfFileName(){
   if (siteToken) return `PV-${slug(siteToken)}-${slug(shortName)}.pdf`;
   return slug(S.draft.name || tpl.name) + ".pdf";
 }
-async function emailBodyFor(){
-  const tpl = S.tpl; const {client, number} = siteTokens();
-  const loc = [client, number ? "n°"+number : ""].filter(Boolean).join(" ");
+function locFor(tpl){ const {client, number} = siteTokens(); return [client, number ? "n°"+number : ""].filter(Boolean).join(" "); }
+async function emailSubjectFor(){
+  const tpl = S.tpl; const loc = locFor(tpl);
   const profile = await getProfile();
+  const sector = sectorInfo(profile.secteur);
+  const base = `PV${loc?` ${loc}`:""} — ${tpl.name}`;
+  return sector.tag ? `${sector.tag} ${base}` : base;
+}
+async function emailBodyFor(){
+  const tpl = S.tpl; const loc = locFor(tpl);
+  const profile = await getProfile();
+  const sector = sectorInfo(profile.secteur);
   const signature = profile && profile.name ? `\n\nCordialement,\n${profile.name}` : "\n\nCordialement,";
-  return `Bonjour,\n\nCi-joint le PV pour ${loc || "le site"} — ${tpl.name}.${signature}`;
+  const header = sector.destEmail ? `À : ${sector.destEmail}\nObjet : ${sector.tag} PV${loc?` ${loc}`:""} — ${tpl.name}\n\n` : "";
+  return `${header}Bonjour,\n\nCi-joint le PV pour ${loc || "le site"} — ${tpl.name}.${signature}`;
 }
 async function showSendReview(bytes){
   const defaultBase = pdfFileName().replace(/\.pdf$/i, "");
   const defaultMsg = await emailBodyFor();
+  const subject = await emailSubjectFor();
   const m=document.createElement("div"); m.className="modal";
   m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Envoyer le PV" style="max-width:560px">
     <div class="sheet-h"><h3>Envoyer le PV</h3></div>
@@ -902,7 +925,7 @@ async function showSendReview(bytes){
         if (!/\.pdf$/i.test(name)) name += ".pdf";
         const msg = $("#sendMsg", m).value;
         m.remove();
-        await saveFile(name, bytes, "application/pdf", msg);
+        await saveFile(name, bytes, "application/pdf", msg, subject);
         resolve(true);
       }
     };
