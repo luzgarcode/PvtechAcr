@@ -112,6 +112,12 @@ img{ max-width:100%; }
 .client-row{ cursor:pointer; }
 .client-row:hover{ background:var(--surface-2); }
 .client-ico{ background:var(--blue-soft); color:var(--blue); border:none; display:flex; align-items:center; justify-content:center; font-family:var(--font-c); font-weight:700; font-size:16px; }
+.client-ico-img{ background:#fff; border:1px solid var(--line, #e2e2e2); border-radius:8px; padding:4px; overflow:hidden; }
+.client-ico-img::before{ content:none; }
+.client-ico-img img{ width:100%; height:100%; object-fit:contain; }
+.doc-ico-img{ background:#fff; overflow:hidden; }
+.doc-ico-img::before{ content:none; }
+.doc-ico-img img{ width:100%; height:100%; object-fit:cover; border-radius:1px; }
 .chev{ flex:none; color:var(--ink-2); width:20px; height:20px; }
 .searchwrap{ margin:0 0 22px; }
 .row .title{}
@@ -240,6 +246,7 @@ textarea.inp, .panel textarea{ min-height:84px; resize:vertical; }
 <main id="main"></main>
 <input type="file" id="pickImg" accept="image/*" class="hidden">
 <input type="file" id="pickImgs" accept="image/*" multiple class="hidden">
+<input type="file" id="pickPdfs" accept="application/pdf" multiple class="hidden">
 <script id="appcode">
 "use strict";
 /* ============ utilities ============ */
@@ -323,6 +330,7 @@ async function pageSizes(pdf){
 
 /* ============ app state ============ */
 const S = { view:"home", tpl:null, draft:null, manifestIndex:new Map(), syncing:false };
+/* Outil de calibrage des champs — réservé au site de test, jamais en prod */
 const main = $("#main"), bar = $("#bar");
 
 const CATEGORIES = ["Borne de commande","Audio","DMB","Drive","Multiservice","Pointeuse","Autre"];
@@ -336,6 +344,19 @@ const TAXONOMY = [
 ];
 function clientDef(name){ return TAXONOMY.find(c => c.client===name); }
 function initialsClient(name){ const w=String(name||"").replace(/[^\p{L}\s'']/gu,"").trim().split(/\s+/).filter(Boolean); return (w[0]?.[0]||"").concat(w[1]?.[0]||"").toUpperCase() || "?"; }
+const CLIENT_LOGOS = {
+  "Tous clients": "assets/logos/acrelec.jpg",
+  "McDonald's": "assets/logos/mcdonalds.png",
+  "KFC": "assets/logos/kfc.png",
+  "Burger King": "assets/logos/burgerking.jpg",
+  "O'Tacos": "assets/logos/otacos.png",
+  "Quick": "assets/logos/quick.png",
+};
+function clientIconHtml(name){
+  const logo = CLIENT_LOGOS[name];
+  if (logo) return `<div class="doc-ico client-ico client-ico-img"><img src="${esc(logo)}" alt="${esc(name)}" loading="lazy"></div>`;
+  return `<div class="doc-ico client-ico">${esc(initialsClient(name))}</div>`;
+}
 
 async function saveFile(filename, bytes, mime, text, shareTitle){
   const blob = new Blob([bytes], {type:mime});
@@ -419,6 +440,12 @@ function tplClients(t){
 }
 function templatesForClient(tpls, clientName){ return clientName==="Tous clients" ? tpls : tpls.filter(t => tplClients(t).includes(clientName)); }
 function tplCategory(t){ const c = t.category; return CATEGORIES.includes(c) ? c : "Autre"; }
+const CATEGORY_ICONS = { "Borne de commande": "assets/logos/borne-k22.png" };
+function categoryIconHtml(cat){
+  const icon = CATEGORY_ICONS[cat];
+  if (icon) return `<div class="doc-ico doc-ico-img"><img src="${esc(icon)}" alt="" loading="lazy"></div>`;
+  return `<div class="doc-ico"></div>`;
+}
 async function bindDraftRows(drafts, tplName){
   $$("[data-open-draft]").forEach(b => b.onclick = () => openFill(b.dataset.openDraft));
   $$("[data-del-draft]").forEach(b => b.onclick = async () => { const d=drafts.find(x=>x.id===b.dataset.delDraft); if(!confirm(`Supprimer le rapport « ${d.name} » ?`)) return; await Store.del("drafts", d.id); showHome(); });
@@ -470,7 +497,7 @@ async function showHome(){
     <div class="list">${draftRowsHtml(drafts, tpls, tplName)}</div>
 
     <div class="sec-h"><h2>Choisir un client</h2><button class="btn ghost sm" id="refreshBtn">${ICON.sync} Vérifier les mises à jour</button></div>
-    <div class="list">${clients.map(c => `<div class="row client-row" data-client="${esc(c.client)}" role="button" tabindex="0"><div class="doc-ico client-ico">${esc(initialsClient(c.client))}</div><div class="main"><div class="name">${esc(c.client)}</div><div class="meta">${countFor(c.client)} modèle${countFor(c.client)>1?"s":""} disponible${countFor(c.client)>1?"s":""}</div></div><div class="chev">${ICON.chev}</div></div>`).join("")}</div>
+    <div class="list">${clients.map(c => `<div class="row client-row" data-client="${esc(c.client)}" role="button" tabindex="0">${clientIconHtml(c.client)}<div class="main"><div class="name">${esc(c.client)}</div><div class="meta">${countFor(c.client)} modèle${countFor(c.client)>1?"s":""} disponible${countFor(c.client)>1?"s":""}</div></div><div class="chev">${ICON.chev}</div></div>`).join("")}</div>
     <p class="kbd" style="margin-top:18px">Tes rapports restent sur cet appareil jusqu'à ce que tu télécharges le PDF. Les modèles sont automatiquement vérifiés à l'ouverture de la page.</p>
     </div>
   </div>`;
@@ -506,9 +533,10 @@ async function showClient(clientName){
   const tpls = await Store.all("templates");
   const forClient = templatesForClient(tpls, clientName);
   const countFor = cat => forClient.filter(t => tplCategory(t)===cat).length;
+  const nonEmptyCategories = cd.categories.filter(cat => countFor(cat) > 0);
   main.innerHTML = `<div class="wrap">
     <div class="sec-h"><h2>${esc(clientName)}</h2></div>
-    <div class="list">${cd.categories.map(cat => `<div class="row client-row" data-cat="${esc(cat)}" role="button" tabindex="0"><div class="doc-ico"></div><div class="main"><div class="name">${esc(cat)}</div><div class="meta">${countFor(cat)} modèle${countFor(cat)>1?"s":""}</div></div><div class="chev">${ICON.chev}</div></div>`).join("")}</div>
+    <div class="list">${nonEmptyCategories.map(cat => `<div class="row client-row" data-cat="${esc(cat)}" role="button" tabindex="0">${categoryIconHtml(cat)}<div class="main"><div class="name">${esc(cat)}</div><div class="meta">${countFor(cat)} modèle${countFor(cat)>1?"s":""}</div></div><div class="chev">${ICON.chev}</div></div>`).join("")}</div>
   </div>`;
   $$(".client-row").forEach(el => { const go=()=>showCategory(clientName, el.dataset.cat); el.onclick=go; el.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } }; });
 }
@@ -584,6 +612,14 @@ function applyProfileToDraft(tpl, draft, profile){
 
 /* ============ FILL ============ */
 const gName = f => f.group || ("Page " + (f.page+1));
+// formOrder (optionnel, par champ) permet de forcer l'ordre d'affichage dans le formulaire
+// sans changer page/x/y (qui restent utilisés pour le placement réel sur le PDF).
+function fieldCmp(a, b){
+  const ah = typeof a.formOrder === "number", bh = typeof b.formOrder === "number";
+  if (ah && bh && a.formOrder !== b.formOrder) return a.formOrder - b.formOrder;
+  if (ah !== bh) return ah ? -1 : 1;
+  return a.page-b.page || a.y-b.y || a.x-b.x;
+}
 function defaultGroupOrder(tpl){
   const sorted = tpl.fields.map((f,i)=>({f,i})).sort((a,b)=> a.f.page-b.f.page || a.f.y-b.f.y || a.f.x-b.f.x || a.i-b.i).map(x=>x.f);
   const L = [...new Set(sorted.map(gName))];
@@ -604,6 +640,9 @@ function orderedGroups(tpl){
   const sorted = tpl.fields.map((f,i)=>({f,i})).sort((a,b)=> a.f.page-b.f.page || a.f.y-b.f.y || a.f.x-b.f.x || a.i-b.i).map(x=>x.f);
   const groups = new Map(groupOrder(tpl).map(g=>[g,[]]));
   for (const f of sorted) groups.get(gName(f)).push(f);
+  // si des champs d'un groupe portent un formOrder explicite, on l'utilise pour l'ordre d'affichage
+  // (uniquement au sein du groupe ; la position réelle sur le PDF n'est pas affectée)
+  for (const fs of groups.values()) if (fs.some(f=>typeof f.formOrder==="number")) fs.sort(fieldCmp);
   return groups;
 }
 const isFilled = v => v!==undefined && v!==null && v!=="" && v!==false;
@@ -612,7 +651,7 @@ function countFilled(d, tpl){ if(!tpl) return 0; return tpl.fields.filter(f=>isF
 async function newDraft(tplId){
   const tpl = await Store.get("templates", tplId);
   const today = new Date().toLocaleDateString("fr-FR");
-  const d = {id:uid(), templateId:tplId, name:`${tpl.name} – ${today}`, values:{}, annex:(tpl.annexPhotos||[]).map(l=>({id:uid(), caption:l, photo:null})), createdAt:Date.now(), updatedAt:Date.now()};
+  const d = {id:uid(), templateId:tplId, name:`${tpl.name} – ${today}`, values:{}, annex:(tpl.annexPhotos||[]).map(l=>({id:uid(), caption:l, photo:null})), annexFiles:[], createdAt:Date.now(), updatedAt:Date.now()};
   applyProfileToDraft(tpl, d, await getProfile());
   await Store.put("drafts", d);
   openFill(d.id);
@@ -634,16 +673,21 @@ async function openFill(draftId){
     <details class="grp" open id="annexGrp"><summary><span class="t">Photos jointes au PV</span><span class="cnt" id="annexCnt"></span></summary>
       <div class="grp-body"><div id="annexList"></div>
       <div class="btnrow" style="margin-top:10px"><button class="btn" id="addPhotos">${ICON.plus} Ajouter des photos</button></div>
-      <p class="kbd">Ajoutées à la fin du PDF, deux par page, avec leur légende.</p></div></details>
+      <p class="kbd">Ajoutées à la fin du PDF, une par page en plein format, avec leur légende.</p></div></details>
+    <details class="grp" id="annexFilesGrp"><summary><span class="t">Fichiers PDF joints</span><span class="cnt" id="annexFilesCnt"></span></summary>
+      <div class="grp-body"><div id="annexFilesList"></div>
+      <div class="btnrow" style="margin-top:10px"><button class="btn" id="addPdfs">${ICON.plus} Ajouter un PDF</button></div>
+      <p class="kbd">Leurs pages sont ajoutées telles quelles à la fin du PV.</p></div></details>
   </div>
   <div class="dock"><button class="btn" id="preview">Aperçu du PDF</button><button class="btn primary" id="gen">${canShareFiles()?"Envoyer le PDF":"Télécharger le PDF"}</button></div>`;
   $("#dName").oninput = e => { d.name=e.target.value; draftChanged(); };
   $("#openAll").onclick = () => $$("#groups details").forEach(x=>x.open=true);
   $("#closeAll").onclick = () => $$("#groups details").forEach(x=>x.open=false);
   $("#addPhotos").onclick = () => { S.annexTarget=null; $("#pickImgs").click(); };
+  $("#addPdfs").onclick = () => $("#pickPdfs").click();
   $("#preview").onclick = () => previewPdf();
   $("#gen").onclick = () => generateAndSave();
-  bindFill(); renderAnnex(); updateStats();
+  bindFill(); renderAnnex(); renderAnnexFiles(); updateStats();
 }
 function groupHtml(g, fs, gi){
   const hasChoice = fs.some(f=>f.type==="choice");
@@ -684,6 +728,7 @@ function updateStats(){
     const c=$("[data-cnt]", det); c.textContent=`${k}/${ids.length}`; c.classList.toggle("done", k===ids.length);
   });
   const ac=$("#annexCnt"); if(ac){ const a=S.draft.annex.filter(x=>x.photo).length; ac.textContent = `${a} photo${a>1?"s":""}`; }
+  const afc=$("#annexFilesCnt"); if(afc){ const a=(S.draft.annexFiles||[]).length; afc.textContent = `${a} fichier${a>1?"s":""}`; }
 }
 function bindFill(){
   const G = $("#groups");
@@ -735,6 +780,35 @@ function renderAnnex(){
   $$("[data-acap]",L).forEach(el=>el.oninput=()=>{ S.draft.annex.find(a=>a.id===el.dataset.acap).caption=el.value; draftChanged(); });
   $$("[data-adel]",L).forEach(el=>el.onclick=()=>{ S.draft.annex=S.draft.annex.filter(a=>a.id!==el.dataset.adel); renderAnnex(); draftChanged(); });
   $$("[data-aup]",L).forEach(el=>el.onclick=()=>{ const i=S.draft.annex.findIndex(a=>a.id===el.dataset.aup); const [x]=S.draft.annex.splice(i,1); S.draft.annex.splice(i-1,0,x); renderAnnex(); draftChanged(); });
+  updateStats();
+}
+$("#pickPdfs").onchange = async e => {
+  const files=[...e.target.files]; e.target.value=""; if(!files.length) return;
+  const done=busy("Ajout des fichiers PDF…");
+  let failed=0;
+  for (const f of files){
+    try{
+      const buf = await f.arrayBuffer();
+      const src = await PDFLib.PDFDocument.load(buf, {ignoreEncryption:true});
+      const pages = src.getPageCount();
+      S.draft.annexFiles = S.draft.annexFiles || [];
+      S.draft.annexFiles.push({id:uid(), name:f.name, bytes:buf, pages, caption:""});
+    }catch(err){ failed++; }
+  }
+  done(); renderAnnexFiles(); draftChanged();
+  if (failed) toast(`${failed} fichier${failed>1?"s n'ont":" n'a"} pas pu être ajouté${failed>1?"s":""} (PDF invalide ou protégé)`);
+};
+function renderAnnexFiles(){
+  const L=$("#annexFilesList"); if(!L) return;
+  const files = S.draft.annexFiles || [];
+  L.innerHTML = files.length ? files.map((a,i)=>`<div class="annex-item" data-af="${a.id}">
+    <div class="ph" style="cursor:default;font-weight:700;color:var(--ink-2)">PDF</div>
+    <div><div style="font-weight:600">${esc(a.name)}</div><div class="kbd">${a.pages?`${a.pages} page${a.pages>1?"s":""}`:""}</div>
+    <label class="fld" style="margin:6px 0"><span>Légende</span><input class="inp" data-afcap="${a.id}" value="${esc(a.caption||"")}" placeholder="Ex. Attestation fournisseur"></label>
+    <div class="btnrow">${i>0?`<button class="btn sm ghost" data-afup="${a.id}">Monter</button>`:""}<button class="btn sm ghost danger" data-afdel="${a.id}">Retirer</button></div></div></div>`).join("") : `<p class="kbd">Aucun fichier PDF joint pour l'instant.</p>`;
+  $$("[data-afcap]",L).forEach(el=>el.oninput=()=>{ const a=S.draft.annexFiles.find(a=>a.id===el.dataset.afcap); if(a){ a.caption=el.value; draftChanged(); } });
+  $$("[data-afdel]",L).forEach(el=>el.onclick=()=>{ S.draft.annexFiles=(S.draft.annexFiles||[]).filter(a=>a.id!==el.dataset.afdel); renderAnnexFiles(); draftChanged(); });
+  $$("[data-afup]",L).forEach(el=>el.onclick=()=>{ const arr=S.draft.annexFiles; const i=arr.findIndex(a=>a.id===el.dataset.afup); const [x]=arr.splice(i,1); arr.splice(i-1,0,x); renderAnnexFiles(); draftChanged(); });
   updateStats();
 }
 
@@ -822,6 +896,7 @@ async function buildPdf(tpl, draft){
     if (f.type==="check"){ drawMark(page, toPdf(page,f), f.mark); continue; }
     if (f.type==="choice" && f.choiceMode==="boxes"){ const o=f.options.find(o=>o.label===v); if(o && o.box){ const pg=pages[o.box.page ?? f.page]; drawMark(pg, toPdf(pg,o.box), f.mark); } continue; }
     const r = toPdf(page, f);
+    if (f.eraseBg) page.drawRectangle({x:r.x, y:r.y, width:r.w, height:r.h, color:rgb(1,1,1)});
     if (f.type==="photo" || f.type==="signature"){
       const im = await embed(v); const s=Math.min(r.w/im.width, r.h/im.height); const w=im.width*s, h=im.height*s;
       page.drawImage(im, {x:r.x+(r.w-w)/2, y:r.y+(r.h-h)/2, width:w, height:h}); continue;
@@ -845,26 +920,43 @@ async function buildPdf(tpl, draft){
       page.drawText(oneLine,{x,y,size,font,color:INK()});
     }
   }
-  // annex photos
+  // annex photos — une page pleine par photo, pour garder le détail
   const photos = draft.annex.filter(a=>a.photo);
   if (photos.length){
     const W=595.28, H=841.89, M=40;
-    for (let i=0;i<photos.length;i+=2){
+    for (let i=0;i<photos.length;i++){
       const pg = doc.addPage([W,H]);
       pg.drawRectangle({x:0,y:H-46,width:W,height:46,color:rgb(0.09,0.13,0.17)});
       pg.drawText(safeB("Photos jointes au PV"),{x:M,y:H-29,size:13,font:bold,color:rgb(1,1,1)});
       const sub = safe(draft.name||""); let ss=9; while(font.widthOfTextAtSize(sub,ss)>W-2*M-150 && ss>6) ss-=0.5;
       pg.drawText(sub,{x:W-M-font.widthOfTextAtSize(sub,ss),y:H-29,size:ss,font,color:rgb(0.8,0.84,0.88)});
-      const slotH=(H-46-M-20)/2;
-      for (let k=0;k<2 && i+k<photos.length;k++){
-        const a=photos[i+k]; const top=H-46-16-k*slotH; const boxH=slotH-40;
-        const im=await embed(a.photo); const s=Math.min((W-2*M)/im.width, boxH/im.height); const w=im.width*s, h=im.height*s;
-        pg.drawImage(im,{x:(W-w)/2, y:top-boxH+(boxH-h)/2, width:w, height:h});
-        const cap = safe(`${i+k+1}. ${a.caption||"Photo"}`);
-        let cs=11; while(bold.widthOfTextAtSize(cap,cs)>W-2*M && cs>7) cs-=0.5;
-        pg.drawText(cap,{x:M,y:top-boxH-16,size:cs,font:bold,color:rgb(0.09,0.13,0.17)});
-      }
+      const a = photos[i];
+      const capH = 30, top = H-46-16, boxH = top-M-capH;
+      const im=await embed(a.photo); const s=Math.min((W-2*M)/im.width, boxH/im.height); const w=im.width*s, h=im.height*s;
+      pg.drawImage(im,{x:(W-w)/2, y:M+capH+(boxH-h)/2, width:w, height:h});
+      const cap = safe(`${i+1}. ${a.caption||"Photo"}`);
+      let cs=12; while(bold.widthOfTextAtSize(cap,cs)>W-2*M && cs>7) cs-=0.5;
+      pg.drawText(cap,{x:M,y:M+(capH-cs)/2,size:cs,font:bold,color:rgb(0.09,0.13,0.17)});
     }
+  }
+  // fichiers PDF joints — pages ajoutées telles quelles, à la fin, avec une légende sur la 1ère page
+  for (const a of (draft.annexFiles||[])){
+    if (!a.bytes) continue;
+    try{
+      const src = await PDFDocument.load(a.bytes, {ignoreEncryption:true});
+      const copied = await doc.copyPages(src, src.getPageIndices());
+      copied.forEach((p,idx) => {
+        doc.addPage(p);
+        if (idx===0 && a.caption){
+          const pw=p.getWidth(), ph=p.getHeight(), bh=Math.min(30, Math.max(16, ph*0.1));
+          p.drawRectangle({x:0,y:ph-bh,width:pw,height:bh,color:rgb(0.09,0.13,0.17)});
+          const cap = safeB(a.caption);
+          let cs = Math.min(11, bh*0.45);
+          while (bold.widthOfTextAtSize(cap,cs) > pw-16 && cs>6) cs -= 0.25;
+          p.drawText(cap, {x:8, y:ph-bh+(bh-cs)/2, size:cs, font:bold, color:rgb(1,1,1)});
+        }
+      });
+    }catch(e){ console.error("annexFile", a.name, e); }
   }
   try{ const form = doc.getForm(); for (const ff of form.getFields()) form.removeField(ff); }catch(e){}
   const opt = (tpl.optionalPages||[]).filter(i => i < pages.length && !tpl.fields.some(f => isFilled(draft.values[f.id]) && (f.page===i || (f.options||[]).some(o => o.box && o.box.page===i && draft.values[f.id]===o.label))));
