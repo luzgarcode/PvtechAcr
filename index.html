@@ -370,7 +370,7 @@ const S = { view:"home", tpl:null, draft:null, manifestIndex:new Map(), syncing:
 /* Outil de calibrage des champs — réservé au site de test, jamais en prod */
 const main = $("#main"), bar = $("#bar");
 
-const CATEGORIES = ["Borne de commande","Audio","DMB","Drive","Multiservice","Pointeuse","Autre"];
+const CATEGORIES = ["Borne de commande","Audio","DMB","Drive","Multiservice","Pointeuse","Sco/Aco","Autre"];
 const TAXONOMY = [
   {client:"Tous clients", categories:CATEGORIES},
   {client:"McDonald's", categories:CATEGORIES},
@@ -378,6 +378,7 @@ const TAXONOMY = [
   {client:"Burger King", categories:CATEGORIES},
   {client:"O'Tacos", categories:CATEGORIES},
   {client:"Quick", categories:CATEGORIES},
+  {client:"Leroy Merlin", categories:CATEGORIES},
 ];
 function clientDef(name){ return TAXONOMY.find(c => c.client===name); }
 function initialsClient(name){ const w=String(name||"").replace(/[^\p{L}\s'']/gu,"").trim().split(/\s+/).filter(Boolean); return (w[0]?.[0]||"").concat(w[1]?.[0]||"").toUpperCase() || "?"; }
@@ -388,6 +389,7 @@ const CLIENT_LOGOS = {
   "Burger King": "assets/logos/burgerking.jpg",
   "O'Tacos": "assets/logos/otacos.png",
   "Quick": "assets/logos/quick.png",
+  "Leroy Merlin": "assets/logos/leroymerlin.png",
 };
 function clientIconHtml(name){
   const logo = CLIENT_LOGOS[name];
@@ -493,13 +495,13 @@ function tplClients(t){
 }
 function templatesForClient(tpls, clientName){ return clientName==="Tous clients" ? tpls : tpls.filter(t => tplClients(t).includes(clientName)); }
 function tplCategory(t){ const c = t.category; return CATEGORIES.includes(c) ? c : "Autre"; }
-const CATEGORY_ICONS = { "Borne de commande": "assets/logos/borne-k22.png", "Pointeuse": "assets/logos/pointeuse.png" };
+const CATEGORY_ICONS = { "Borne de commande": "assets/logos/borne-k22.png", "Pointeuse": "assets/logos/pointeuse.png", "Sco/Aco": "assets/logos/sco-aco.png" };
 function categoryIconHtml(cat){
   const icon = CATEGORY_ICONS[cat];
   if (icon) return `<div class="doc-ico doc-ico-img"><img src="${esc(icon)}" alt="" loading="lazy"></div>`;
   return `<div class="doc-ico"></div>`;
 }
-const TEMPLATE_ICONS = { "tpl-fe1ced90": "assets/logos/pointeuse.png", "tpl-o22k27": "assets/logos/k27-otacos.png", "tpl-f9c787bb": "assets/logos/doublecheck.png" };
+const TEMPLATE_ICONS = { "tpl-fe1ced90": "assets/logos/pointeuse.png", "tpl-o22k27": "assets/logos/k27-otacos.png", "tpl-f9c787bb": "assets/logos/doublecheck.png", "tpl-1b4ee5ca": "assets/logos/sco-aco.png" };
 function templateIconHtml(t){
   const icon = TEMPLATE_ICONS[t.id];
   if (icon) return `<div class="doc-ico doc-ico-img"><img src="${esc(icon)}" alt="" loading="lazy"></div>`;
