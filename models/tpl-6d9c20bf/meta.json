@@ -89,7 +89,7 @@
       "choiceMode": "text",
       "mark": "x",
       "lineHeight": 0,
-      "auto": ""
+      "auto": "site-email-mcdo"
     },
     {
       "id": "f570287e0",
@@ -219,7 +219,7 @@
     },
     {
       "id": "fc7686eaa",
-      "type": "text",
+      "type": "choice",
       "label": "Borne NGK-27 H1 1 – Type de borne",
       "group": "Traçabilité",
       "page": 2,
@@ -229,7 +229,11 @@
       "h": 21.3,
       "fontSize": 0,
       "align": "left",
-      "options": [],
+      "options": [
+        { "label": "Simple", "box": null },
+        { "label": "Double", "box": null },
+        { "label": "Semi-outdoor", "box": null }
+      ],
       "choiceMode": "text",
       "mark": "x",
       "lineHeight": 0,
@@ -309,7 +313,7 @@
     },
     {
       "id": "f4a1cafc4",
-      "type": "text",
+      "type": "choice",
       "label": "Borne NGK-27 H1 2 – Type de borne",
       "group": "Traçabilité",
       "page": 2,
@@ -319,7 +323,11 @@
       "h": 21.2,
       "fontSize": 0,
       "align": "left",
-      "options": [],
+      "options": [
+        { "label": "Simple", "box": null },
+        { "label": "Double", "box": null },
+        { "label": "Semi-outdoor", "box": null }
+      ],
       "choiceMode": "text",
       "mark": "x",
       "lineHeight": 0,
@@ -399,7 +407,7 @@
     },
     {
       "id": "fbbe448d6",
-      "type": "text",
+      "type": "choice",
       "label": "Borne NGK-27 H1 3 – Type de borne",
       "group": "Traçabilité",
       "page": 2,
@@ -409,7 +417,11 @@
       "h": 21.5,
       "fontSize": 0,
       "align": "left",
-      "options": [],
+      "options": [
+        { "label": "Simple", "box": null },
+        { "label": "Double", "box": null },
+        { "label": "Semi-outdoor", "box": null }
+      ],
       "choiceMode": "text",
       "mark": "x",
       "lineHeight": 0,
@@ -489,7 +501,7 @@
     },
     {
       "id": "f7268906e",
-      "type": "text",
+      "type": "choice",
       "label": "Borne NGK-27 H1 4 – Type de borne",
       "group": "Traçabilité",
       "page": 2,
@@ -499,7 +511,11 @@
       "h": 21.2,
       "fontSize": 0,
       "align": "left",
-      "options": [],
+      "options": [
+        { "label": "Simple", "box": null },
+        { "label": "Double", "box": null },
+        { "label": "Semi-outdoor", "box": null }
+      ],
       "choiceMode": "text",
       "mark": "x",
       "lineHeight": 0,
@@ -579,7 +595,7 @@
     },
     {
       "id": "f7820c73c",
-      "type": "text",
+      "type": "choice",
       "label": "Borne NGK-27 H1 5 – Type de borne",
       "group": "Traçabilité",
       "page": 2,
@@ -589,7 +605,11 @@
       "h": 21.3,
       "fontSize": 0,
       "align": "left",
-      "options": [],
+      "options": [
+        { "label": "Simple", "box": null },
+        { "label": "Double", "box": null },
+        { "label": "Semi-outdoor", "box": null }
+      ],
       "choiceMode": "text",
       "mark": "x",
       "lineHeight": 0,
@@ -669,7 +689,7 @@
     },
     {
       "id": "fef0f8460",
-      "type": "text",
+      "type": "choice",
       "label": "Borne NGK-27 H1 6 – Type de borne",
       "group": "Traçabilité",
       "page": 2,
@@ -679,7 +699,11 @@
       "h": 21.2,
       "fontSize": 0,
       "align": "left",
-      "options": [],
+      "options": [
+        { "label": "Simple", "box": null },
+        { "label": "Double", "box": null },
+        { "label": "Semi-outdoor", "box": null }
+      ],
       "choiceMode": "text",
       "mark": "x",
       "lineHeight": 0,
@@ -3028,7 +3052,7 @@
     {
       "id": "fa9156f05",
       "type": "choice",
-      "label": "Borne 1 - BORNE",
+      "label": "Aspect borne 1",
       "group": "Aspect général de la borne",
       "page": 4,
       "x": 294.8,
@@ -3067,7 +3091,7 @@
     {
       "id": "ff700d421",
       "type": "choice",
-      "label": "Borne 2 - BORNE",
+      "label": "Aspect borne 2",
       "group": "Aspect général de la borne",
       "page": 4,
       "x": 351.6,
@@ -3106,7 +3130,7 @@
     {
       "id": "fdf995b4c",
       "type": "choice",
-      "label": "Borne 3 - BORNE",
+      "label": "Aspect borne 3",
       "group": "Aspect général de la borne",
       "page": 4,
       "x": 408.3,
@@ -3145,7 +3169,7 @@
     {
       "id": "f043651a0",
       "type": "choice",
-      "label": "Borne 4 - BORNE",
+      "label": "Aspect borne 4",
       "group": "Aspect général de la borne",
       "page": 4,
       "x": 465.1,
@@ -3184,7 +3208,7 @@
     {
       "id": "fc376b49d",
       "type": "choice",
-      "label": "Borne 5 - BORNE",
+      "label": "Aspect borne 5",
       "group": "Aspect général de la borne",
       "page": 4,
       "x": 521.8,
@@ -3223,7 +3247,7 @@
     {
       "id": "f656091a9",
       "type": "choice",
-      "label": "Borne 6 - BORNE",
+      "label": "Aspect borne 6",
       "group": "Aspect général de la borne",
       "page": 4,
       "x": 578.6,
@@ -3784,7 +3808,7 @@
     {
       "id": "fda2e91e4",
       "type": "choice",
-      "label": "Borne 1 - ECRAN",
+      "label": "Borne 1 - Écran",
       "group": "Contrôle des périphériques",
       "page": 5,
       "x": 295.0,
@@ -3823,7 +3847,7 @@
     {
       "id": "fd400a448",
       "type": "choice",
-      "label": "Borne 2 - ECRAN",
+      "label": "Borne 2 - Écran",
       "group": "Contrôle des périphériques",
       "page": 5,
       "x": 351.8,
@@ -3862,7 +3886,7 @@
     {
       "id": "f5f365cfd",
       "type": "choice",
-      "label": "Borne 3 - ECRAN",
+      "label": "Borne 3 - Écran",
       "group": "Contrôle des périphériques",
       "page": 5,
       "x": 408.3,
@@ -3901,7 +3925,7 @@
     {
       "id": "f63f9d420",
       "type": "choice",
-      "label": "Borne 4 - ECRAN",
+      "label": "Borne 4 - Écran",
       "group": "Contrôle des périphériques",
       "page": 5,
       "x": 465.0,
@@ -3940,7 +3964,7 @@
     {
       "id": "f7ad15c1a",
       "type": "choice",
-      "label": "Borne 5 - ECRAN",
+      "label": "Borne 5 - Écran",
       "group": "Contrôle des périphériques",
       "page": 5,
       "x": 521.8,
@@ -3979,7 +4003,7 @@
     {
       "id": "f1edd23f6",
       "type": "choice",
-      "label": "Borne 6 - ECRAN",
+      "label": "Borne 6 - Écran",
       "group": "Contrôle des périphériques",
       "page": 5,
       "x": 578.5,
