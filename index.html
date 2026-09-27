@@ -630,6 +630,32 @@ async function showProfile(){
     </div>
     <div class="divider"></div>
     <div class="grp" style="padding:14px">
+      <div class="ql">Réglages</div>
+      <p style="margin:6px 0 12px;color:var(--ink-2);font-size:14px">Nouveautés, resynchronisation des modèles…</p>
+      <button class="btn" id="goSettings">Ouvrir les réglages</button>
+    </div>
+  </div>`;
+  const save = debounce(async () => { const cur = await getProfile(); await saveProfile({...cur, name:$("#pfName").value.trim(), phone:$("#pfPhone").value.trim(), email:$("#pfEmail").value.trim(), secteur:$("#pfSecteur").value}); const ss=$("#ss"); if(ss) ss.textContent="Enregistré"; }, 400);
+  const dirty = () => { const ss=$("#ss"); if(ss) ss.textContent="Modifications…"; save(); };
+  $("#pfName").oninput = dirty; $("#pfPhone").oninput = dirty; $("#pfEmail").oninput = dirty; $("#pfSecteur").onchange = dirty;
+  $("#pfSign").onclick = async () => { const png = await signaturePad("Ma signature", 3); if (png){ const cur = await getProfile(); await saveProfile({...cur, signature:png}); showProfile(); } };
+  if ($("#pfSignClear")) $("#pfSignClear").onclick = async () => { const cur = await getProfile(); await saveProfile({...cur, signature:null}); showProfile(); };
+  $("#goSettings").onclick = () => showSettings();
+}
+
+/* ============ RÉGLAGES ============ */
+async function showSettings(){
+  S.view="settings";
+  setBar(`<button class="btn sm" id="bk" aria-label="Retour">${ICON.back}</button><div class="title">Réglages</div><div class="sp"></div>`);
+  $("#bk").onclick = () => showProfile();
+  main.innerHTML = `<div class="fill" style="max-width:520px">
+    <div class="grp" open style="padding:14px">
+      <div class="ql">Prise en main</div>
+      <p style="margin:6px 0 12px;color:var(--ink-2);font-size:14px">Revoir le tuto rapide : choisir un modèle, remplir, scanner, signer, envoyer.</p>
+      <button class="btn" id="showTutorial">Revoir le tuto</button>
+    </div>
+    <div class="divider"></div>
+    <div class="grp" style="padding:14px">
       <div class="ql">Nouveautés</div>
       <p style="margin:6px 0 12px;color:var(--ink-2);font-size:14px">Revoir les dernières nouveautés de l'appli.</p>
       <button class="btn" id="showChangelog">Voir les nouveautés</button>
@@ -641,11 +667,7 @@ async function showProfile(){
       <button class="btn" id="hardResync">Forcer une resynchronisation complète</button>
     </div>
   </div>`;
-  const save = debounce(async () => { const cur = await getProfile(); await saveProfile({...cur, name:$("#pfName").value.trim(), phone:$("#pfPhone").value.trim(), email:$("#pfEmail").value.trim(), secteur:$("#pfSecteur").value}); const ss=$("#ss"); if(ss) ss.textContent="Enregistré"; }, 400);
-  const dirty = () => { const ss=$("#ss"); if(ss) ss.textContent="Modifications…"; save(); };
-  $("#pfName").oninput = dirty; $("#pfPhone").oninput = dirty; $("#pfEmail").oninput = dirty; $("#pfSecteur").onchange = dirty;
-  $("#pfSign").onclick = async () => { const png = await signaturePad("Ma signature", 3); if (png){ const cur = await getProfile(); await saveProfile({...cur, signature:png}); showProfile(); } };
-  if ($("#pfSignClear")) $("#pfSignClear").onclick = async () => { const cur = await getProfile(); await saveProfile({...cur, signature:null}); showProfile(); };
+  $("#showTutorial").onclick = () => showTutorial();
   $("#showChangelog").onclick = () => showChangelog(CHANGELOG);
   $("#hardResync").onclick = async () => {
     if (!confirm("Effacer et retélécharger tous les modèles de PV maintenant ?")) return;
@@ -653,7 +675,7 @@ async function showProfile(){
     for (const t of await Store.all("templates")) if (t.published) await Store.del("templates", t.id);
     const res = await syncManifest();
     toast(res.ok ? "Modèles resynchronisés" : "Certains modèles n'ont pas pu être retéléchargés, réessaie");
-    showProfile();
+    showSettings();
   };
 }
 function applyProfileToDraft(tpl, draft, profile){
@@ -1240,21 +1262,45 @@ function showLogin(onSuccess){
 }
 
 /* ============ boot ============ */
+/* ---- tuto rapide de prise en main ---- */
+const TUTORIAL_STEPS = [
+  { icon:"select", title:"Choisis ton modèle", body:"Sur l'accueil, sélectionne le client, puis la catégorie, puis le modèle de PV concerné (ou utilise la recherche en haut si tu connais son nom)." },
+  { icon:"text", title:"Remplis les infos", body:"Renseigne les infos du site, les contrôles et les cases à cocher. « Tout à OUI » et les boutons similaires remplissent d'un coup les réponses qui se ressemblent." },
+  { icon:"barcode", title:"Scanne au lieu de taper", body:"Pour un numéro de série ou tout autre code-barres, tape sur le bouton 📷 à côté du champ : la caméra du téléphone s'occupe du reste." },
+  { icon:"signature", title:"Fais signer", body:"Chaque signature (technicien, client, formation…) se fait directement à l'écran, du bout du doigt." },
+  { icon:"check", title:"Génère et envoie", body:"Une fois le rapport complet, génère le PDF : il est déposé directement dans le document d'origine, prêt à être envoyé ou téléchargé." },
+];
+function showTutorial(onClose){
+  let i = 0;
+  const m=document.createElement("div"); m.className="modal";
+  document.body.appendChild(m);
+  const render = () => {
+    const s = TUTORIAL_STEPS[i];
+    const dots = TUTORIAL_STEPS.map((_,idx) => `<span style="width:${idx===i?18:6}px;height:6px;border-radius:3px;background:${idx===i?"var(--vis)":"var(--line)"};display:inline-block;transition:width .2s"></span>`).join("");
+    m.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Tuto rapide">
+      <div class="sheet-b" style="text-align:center">
+        <div class="login-mark" style="margin:0 auto 16px">${ICON[s.icon]||ICON.mark}</div>
+        <h3 style="margin:0 0 10px">${esc(s.title)}</h3>
+        <p style="color:var(--ink-2);margin:0 0 18px">${esc(s.body)}</p>
+        <div style="display:flex;justify-content:center;gap:5px">${dots}</div>
+      </div>
+      <div class="sheet-f" style="justify-content:space-between">
+        ${i>0 ? `<button class="btn ghost" data-x="prev">Précédent</button>` : `<span></span>`}
+        <button class="btn primary" data-x="next">${i<TUTORIAL_STEPS.length-1 ? "Suivant" : "Compris"}</button>
+      </div></div>`;
+  };
+  render();
+  m.onclick = e => {
+    const a=e.target.dataset && (e.target.dataset.x || e.target.closest("[data-x]")?.dataset.x);
+    if (a==="next"){ if (i<TUTORIAL_STEPS.length-1){ i++; render(); } else { m.remove(); if (onClose) onClose(); } }
+    else if (a==="prev"){ if (i>0){ i--; render(); } }
+  };
+}
 /* ---- présentation (une seule fois) ---- */
 const ONBOARD_KEY = "pvgo_onboarded";
 function maybeShowOnboarding(){
   try{ if (localStorage.getItem(ONBOARD_KEY) === "1") return; }catch(e){ return; }
-  const m=document.createElement("div"); m.className="modal";
-  m.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="Bienvenue">
-    <div class="sheet-b" style="text-align:center">
-      <div class="login-mark" style="margin:0 auto 16px">${ICON.mark}</div>
-      <h3 style="margin:0 0 10px">Remplissez le PV sur le terrain,<br>récupérez le PDF signé.</h3>
-      <p style="color:var(--ink-2);margin:0">Choisissez un client, remplissez les infos, les contrôles, les photos et les signatures directement sur le téléphone. L'appli les place dans le PDF d'origine, prêt à envoyer.</p>
-    </div>
-    <div class="sheet-f" style="justify-content:center"><button class="btn primary" data-x="ok">Compris</button></div></div>`;
-  document.body.appendChild(m);
-  const close = () => { try{ localStorage.setItem(ONBOARD_KEY, "1"); }catch(e){} m.remove(); };
-  m.onclick = e => { const a=e.target.dataset && (e.target.dataset.x || e.target.closest("[data-x]")?.dataset.x); if(a==="ok") close(); };
+  showTutorial(() => { try{ localStorage.setItem(ONBOARD_KEY, "1"); }catch(e){} });
 }
 
 /* ---- nouveautés ---- */
