@@ -393,6 +393,14 @@ async function loadMcdoRestaurants(){
     }
   }catch(e){}
 }
+/* Numéro de restaurant Quick -> nom/adresse (chargé une fois, mis en cache par le SW) */
+let QUICK_RESTAURANTS = null;
+async function loadQuickRestaurants(){
+  try{
+    const res = await fetch("./assets/quick-restaurants.json");
+    if (res.ok) QUICK_RESTAURANTS = await res.json();
+  }catch(e){}
+}
 /* Outil de calibrage des champs — réservé au site de test, jamais en prod */
 /* Nom/logo affichés — différents sur le site de test pour le distinguer de la prod au premier coup d'œil */
 let APP_NAME = "PV & Go", LOGO_COLOR = "", LOGO_INK = "";
@@ -696,6 +704,12 @@ async function showSettings(){
       <p style="margin:6px 0 12px;color:var(--ink-2);font-size:14px">Si un modèle affiche des infos anciennes ou incomplètes malgré « Vérifier les mises à jour », force une resynchronisation complète : ça efface et retélécharge tous les modèles depuis le début. Tes rapports en cours ne sont pas touchés.</p>
       <button class="btn" id="hardResync">Forcer une resynchronisation complète</button>
     </div>
+    <div class="divider"></div>
+    <div class="grp" style="padding:14px">
+      <div class="ql">Dépannage</div>
+      <p style="margin:6px 0 12px;color:var(--ink-2);font-size:14px">En cas de gros bug (écran figé, boutons qui ne répondent plus, affichage cassé) : vide le cache de l'appli et redémarre proprement. Tes rapports en cours et tes réglages ne sont pas touchés, seuls les fichiers de l'appli sont retéléchargés.</p>
+      <button class="btn sm ghost danger" id="hardReset">Vider le cache et redémarrer l'appli</button>
+    </div>
     <p style="text-align:center;color:var(--ink-2);font-size:12px;margin:18px 0 4px">Propulsé par Dylan ⚡</p>
   </div>`;
   $("#showTutorial").onclick = () => showTutorial();
@@ -707,6 +721,21 @@ async function showSettings(){
     const res = await syncManifest();
     toast(res.ok ? "Modèles resynchronisés" : "Certains modèles n'ont pas pu être retéléchargés, réessaie");
     showSettings();
+  };
+  $("#hardReset").onclick = async () => {
+    if (!confirm("Vider le cache et redémarrer l'appli maintenant ? Tes rapports en cours ne seront pas perdus.")) return;
+    const btn = $("#hardReset"); btn.disabled = true; btn.textContent = "Nettoyage…";
+    try{
+      if ("serviceWorker" in navigator){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) await r.unregister();
+      }
+      if ("caches" in window){
+        const keys = await caches.keys();
+        for (const k of keys) await caches.delete(k);
+      }
+    }catch(e){}
+    location.reload();
   };
 }
 function applyProfileToDraft(tpl, draft, profile){
@@ -842,9 +871,10 @@ function fieldHtml(f){
     case "text": {
       const isMcdoName = f.auto==="site-client" && S.tpl.fields.some(x=>x.auto==="site-email-mcdo");
       const listAttr = isMcdoName ? ` list="mcdoNamesList"` : "";
-      w = isSerialField(f)
+      const hint = f.auto==="site-number-quick" ? `<div style="color:var(--ink-2);font-size:12px;margin-top:4px">💡 À indiquer en priorité : remplit automatiquement l'adresse ci-dessus.</div>` : "";
+      w = (isSerialField(f)
         ? `<div class="scanrow"><input class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" autocomplete="off"${listAttr}><button type="button" class="btn sm scanbtn" data-scan="${f.id}" aria-label="Scanner un code-barres">${ICON.barcode}</button></div>`
-        : `<input class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" autocomplete="off"${listAttr}>`;
+        : `<input class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" autocomplete="off"${listAttr}>`) + hint;
       break;
     }
     case "multiline": w=`<textarea class="inp" id="${id}" data-f="${f.id}" rows="3">${esc(v||"")}</textarea>`; break;
@@ -913,6 +943,21 @@ function setVal(fid, v, opts){
           setVal(numF.id, num, {auto:true});
           refreshField(numF.id);
         }
+      }
+    }
+  }
+  /* Numéro de site Quick -> déduit l'adresse du restaurant (via la liste embarquée) */
+  if (f && f.auto==="site-number-quick" && QUICK_RESTAURANTS){
+    const addrF = S.tpl.fields.find(x=>x.auto==="site-address-quick");
+    if (addrF){
+      const already = S.draft.values[addrF.id];
+      const wasAuto = S.draft.autoFields[addrF.id];
+      if (!isFilled(already) || wasAuto){
+        const digits = String(v||"").replace(/\D/g,"").replace(/^0+/,"");
+        const info = digits ? QUICK_RESTAURANTS[digits] : null;
+        const address = info ? `Quick ${info.name} — ${info.address}, ${info.zip} ${info.city}` : "";
+        setVal(addrF.id, address, {auto:true});
+        refreshField(addrF.id);
       }
     }
   }
@@ -1298,7 +1343,6 @@ async function generateAndSave(){
 }
 /* ============ CALIBRAGE DES CHAMPS (site de test uniquement) ============ */
 
-
 async function previewPdf(){
   await flushDraft();
   const done=busy("Création de l'aperçu…"); let bytes;
@@ -1336,7 +1380,6 @@ function isAuthed(){
   }catch(e){ return false; }
 }
 function setAuthed(){ try{ localStorage.setItem(AUTH_KEY,"1"); localStorage.setItem(AUTH_AT_KEY, String(Date.now())); }catch(e){} }
-
 function showLogin(onSuccess){
   const overlay = document.createElement("div");
   overlay.id = "loginOverlay";
@@ -1368,8 +1411,10 @@ const TUTORIAL_STEPS = [
   { icon:"select", title:"Choisis ton modèle", body:"Sur l'accueil, sélectionne le client, puis la catégorie, puis le modèle de PV concerné (ou utilise la recherche en haut si tu connais son nom)." },
   { icon:"text", title:"Remplis les infos", body:"Renseigne les infos du site, les contrôles et les cases à cocher. « Tout à OUI » et les boutons similaires remplissent d'un coup les réponses qui se ressemblent." },
   { icon:"barcode", title:"Scanne au lieu de taper", body:"Pour un numéro de série ou tout autre code-barres, tape sur le bouton 📷 à côté du champ : la caméra du téléphone s'occupe du reste." },
+  { icon:"magic", title:"Des champs qui se remplissent tout seuls", body:"Sur les fiches McDo, le numéro (ou le nom) du restaurant remplit tout seul le reste. Sur le PV K27 LITE - QUICK, le numéro de restaurant remplit tout seul l'adresse complète." },
   { icon:"signature", title:"Fais signer", body:"Chaque signature (technicien, client, formation…) se fait directement à l'écran, du bout du doigt." },
   { icon:"check", title:"Génère et envoie", body:"Une fois le rapport complet, génère le PDF : il est déposé directement dans le document d'origine, prêt à être envoyé ou téléchargé." },
+  { icon:"sync", title:"En cas de gros bug", body:"Un écran figé ou un affichage cassé ? Va dans Réglages → « Vider le cache et redémarrer l'appli ». Tes rapports en cours ne sont jamais touchés." },
 ];
 function showTutorial(onClose){
   let i = 0;
@@ -1398,7 +1443,7 @@ function showTutorial(onClose){
   };
 }
 /* ---- présentation (une seule fois) ---- */
-const ONBOARD_KEY = "pvgo_onboarded";
+const ONBOARD_KEY = "pvgo_onboarded_v2"; // v2 : bumpé pour refaire passer le tuto à tout le monde (nouveautés Quick/McDo/dépannage)
 function maybeShowOnboarding(){
   try{ if (localStorage.getItem(ONBOARD_KEY) === "1") return; }catch(e){ return; }
   showTutorial(() => { try{ localStorage.setItem(ONBOARD_KEY, "1"); }catch(e){} });
@@ -1407,6 +1452,10 @@ function maybeShowOnboarding(){
 /* ---- nouveautés ---- */
 const CHANGELOG_KEY = "pvgo_changelog_seen";
 const CHANGELOG = [
+  { version:"2026-09-27b", title:"🆕 Quick & dépannage", items:[
+    "Sur le PV K27 LITE - QUICK, le numéro de restaurant déduit maintenant tout seul l'adresse complète (nom + adresse + ville).",
+    "Nouveau dans Réglages : un bouton « Vider le cache et redémarrer l'appli » en cas de gros bug (écran figé, affichage cassé). Tes rapports en cours ne sont jamais touchés.",
+  ]},
   { version:"2026-09-27", title:"🆕 Scanner de codes-barres", items:[
     "Tu peux maintenant scanner un numéro de série (ou tout autre code-barres) avec l'appareil photo au lieu de le taper à la main : cherche le bouton 📷 à côté du champ concerné.",
     "Sur les fiches McDo, le numéro de restaurant déduit maintenant tout seul son nom (et son email). Et ça marche aussi dans l'autre sens : tape les premières lettres du nom dans « Nom du restaurant », une liste te propose les restaurants correspondants, et choisir dedans remplit le numéro pour toi.",
@@ -1446,8 +1495,10 @@ function maybeShowChangelog(){
     if (S.view === "home") showHome();
     if ("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }
     loadMcdoRestaurants();
+    loadQuickRestaurants();
     if (S.view === "home") maybeShowOnboarding();
-    if (S.view === "home") maybeShowChangelog();
+    // popup automatique de nouveautés retiré : les nouveautés sont désormais intégrées au tuto de démarrage.
+    // (CHANGELOG et showChangelog restent utilisables manuellement via Réglages → « Voir les nouveautés ».)
   };
   if (isAuthed()) await start();
   else showLogin(start);
