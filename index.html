@@ -217,6 +217,7 @@ textarea.inp, .panel textarea{ min-height:84px; resize:vertical; }
 .seg button.on{ background:var(--blue); border-color:var(--blue); color:var(--surface); }
 .seg button.on.v-ok{ background:var(--ok); border-color:var(--ok); }
 .seg button.on.v-nok{ background:var(--nok); border-color:var(--nok); }
+.seg button.on.v-warn{ background:var(--vis); border-color:var(--vis); color:var(--vis-ink); }
 .toggle{ display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:600; }
 .toggle input{ width:24px; height:24px; accent-color:var(--blue); }
 .media{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
@@ -431,6 +432,25 @@ async function loadMcdoRestaurants(){
     }
   }catch(e){}
 }
+/* Numéro de restaurant McDo -> téléphone (chargé une fois, mis en cache par le SW) */
+let MCDO_PHONES = null;
+async function loadMcdoPhones(){
+  try{
+    const res = await fetch("./assets/mcdo-phones.json");
+    if (res.ok) MCDO_PHONES = await res.json();
+  }catch(e){}
+}
+function formatFrPhone(digits){
+  return String(digits||"").replace(/(\d{2})(?=\d)/g, "$1 ").trim();
+}
+/* Numéro de restaurant McDo -> adresse complète (chargé une fois, mis en cache par le SW) */
+let MCDO_ADDRESSES = null;
+async function loadMcdoAddresses(){
+  try{
+    const res = await fetch("./assets/mcdo-addresses.json");
+    if (res.ok) MCDO_ADDRESSES = await res.json();
+  }catch(e){}
+}
 /* Suggestions de noms McDo (autocomplétion maison, ne dépend pas du <datalist> natif — peu fiable sur iOS Safari) */
 function mcdoMatches(query){
   if (!MCDO_RESTAURANTS) return [];
@@ -614,7 +634,7 @@ async function bindDraftRows(drafts, tplName){
 }
 function draftRowsHtml(drafts, tpls, tplName){
   return drafts.length ? drafts.map(d => {
-    const tpl = tpls.find(t=>t.id===d.templateId); const tot = tpl ? tpl.fields.length : 0; const n = countFilled(d, tpl);
+    const tpl = tpls.find(t=>t.id===d.templateId); const tot = tpl ? countableFields(tpl).length : 0; const n = countFilled(d, tpl);
     return `<div class="row"><div class="doc-ico filled"></div><div class="main"><div class="name">${esc(d.name)}</div><div class="meta">${esc(tplName(d.templateId))} · modifié le ${fmtDate(d.updatedAt)}</div>${tot?`<div class="progress" title="${n} sur ${tot} zones remplies"><b style="width:${Math.round(100*n/tot)}%"></b><span class="progress-label">${n} / ${tot}</span></div>`:""}</div>
     <div class="acts"><button class="btn primary" data-open-draft="${d.id}">Reprendre</button><button class="btn danger ghost" data-del-draft="${d.id}">Supprimer</button></div></div>`;}).join("")
     : `<div class="empty">Aucun rapport en cours.</div>`;
@@ -701,8 +721,8 @@ async function showCategory(clientName, categoryName){
   tpls.sort((a,b)=>a.name.localeCompare(b.name,"fr"));
   main.innerHTML = `<div class="wrap">
     <div class="sec-h"><h2>${esc(clientName)} · ${esc(categoryName)}</h2></div>
-    <div class="list">${tpls.length ? tpls.map(t => `<div class="row">${templateIconHtml(t)}<div class="main"><div class="name">${esc(t.name)}</div><div class="meta">${clientName==="Tous clients"?`${esc(tplClients(t).join(", "))} · `:""}${t.fields.length} zone${t.fields.length>1?"s":""} à remplir${t.annexPhotos&&t.annexPhotos.length?` · ${t.annexPhotos.length} photo${t.annexPhotos.length>1?"s":""} demandée${t.annexPhotos.length>1?"s":""}`:""}</div></div>
-      <div class="acts"><button class="btn primary" data-new-draft="${t.id}">Nouveau rapport</button></div></div>`).join("") : `<div class="empty">Aucun modèle pour l'instant dans cette rubrique.</div>`}</div>
+    <div class="list">${tpls.length ? tpls.map(t => { const cnt=countableFields(t).length; return `<div class="row">${templateIconHtml(t)}<div class="main"><div class="name">${esc(t.name)}</div><div class="meta">${clientName==="Tous clients"?`${esc(tplClients(t).join(", "))} · `:""}${cnt} zone${cnt>1?"s":""} à remplir${t.annexPhotos&&t.annexPhotos.length?` · ${t.annexPhotos.length} photo${t.annexPhotos.length>1?"s":""} demandée${t.annexPhotos.length>1?"s":""}`:""}</div></div>
+      <div class="acts"><button class="btn primary" data-new-draft="${t.id}">Nouveau rapport</button></div></div>`; }).join("") : `<div class="empty">Aucun modèle pour l'instant dans cette rubrique.</div>`}</div>
   </div>`;
   $$("[data-new-draft]").forEach(b => b.onclick = () => newDraft(b.dataset.newDraft));
 }
@@ -848,7 +868,28 @@ function orderedGroups(tpl){
   return groups;
 }
 const isFilled = v => v!==undefined && v!==null && v!=="" && v!==false;
-function countFilled(d, tpl){ if(!tpl) return 0; return tpl.fields.filter(f=>isFilled(d.values[f.id])).length; }
+// les champs "mirror" (valeur recopiée d'un autre champ, ex. le type NGK/SAT choisi
+// dans le Matériel, réaffiché dans la checklist Installation) ne sont jamais
+// remplis pour eux-mêmes : ils ne comptent pas dans les zones à remplir
+function countableFields(tpl){ return tpl ? tpl.fields.filter(f=>f.type!=="mirror") : []; }
+function countFilled(d, tpl){ if(!tpl) return 0; return countableFields(tpl).filter(f=>isFilled(d.values[f.id])).length; }
+// un champ avec visibleIf ne s'affiche dans le formulaire que si le champ qu'il
+// référence a déjà la valeur attendue (ex. une checklist "ORB Comptoir" qui ne
+// s'affiche que si "ORB - Comptoir" a été répondu "OUI" dans le Matériel)
+function isFieldVisible(f, values){
+  if (!f.visibleIf) return true;
+  const v = values[f.visibleIf.field];
+  return f.visibleIf.equalsAny ? f.visibleIf.equalsAny.includes(v) : v===f.visibleIf.equals;
+}
+function visibleGroups(tpl, values){
+  const groups = orderedGroups(tpl);
+  const out = new Map();
+  for (const [g, fs] of groups){
+    const vis = fs.filter(f=>f.type!=="mirror" && isFieldVisible(f, values));
+    if (vis.length) out.set(g, vis);
+  }
+  return out;
+}
 
 async function newDraft(tplId){
   const tpl = await Store.get("templates", tplId);
@@ -865,13 +906,12 @@ async function openFill(draftId){
   S.view="fill"; S.draft=d; S.tpl=tpl;
   setBar(`<button class="btn sm" id="bk" aria-label="Retour">${ICON.back}</button><div class="title">${esc(tpl.name)}</div><div class="sp"></div><span class="save-state" id="ss">Enregistré</span>`);
   $("#bk").onclick = async () => { await flushDraft(); showHome(); };
-  const groups = orderedGroups(tpl);
   main.innerHTML = `<div class="fill">
     <div class="fill-head">
       <label class="fld" style="margin:0"><span>Nom du rapport</span><input class="inp" id="dName" value="${esc(d.name)}"></label>
-      <div class="fill-stats"><div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${tpl.fields.length}" aria-valuenow="0" aria-label="Zones remplies"><div class="pbar-fill" id="statFill"></div><span class="pbar-label" id="stat"></span></div><button class="btn sm ghost" id="openAll">Tout déplier</button><button class="btn sm ghost" id="closeAll">Tout replier</button></div>
+      <div class="fill-stats"><div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${countableFields(tpl).length}" aria-valuenow="0" aria-label="Zones remplies"><div class="pbar-fill" id="statFill"></div><span class="pbar-label" id="stat"></span></div><button class="btn sm ghost" id="openAll">Tout déplier</button><button class="btn sm ghost" id="closeAll">Tout replier</button></div>
     </div>
-    <div id="groups">${[...groups.entries()].map(([g,fs],gi)=>groupHtml(g,fs,gi)).join("")}</div>
+    <div id="groups">${[...visibleGroups(tpl, d.values).entries()].map(([g,fs],gi)=>groupHtml(g,fs,gi)).join("")}</div>
     <details class="grp" open id="annexGrp"><summary><span class="t">Photos jointes au PV</span><span class="cnt" id="annexCnt"></span></summary>
       <div class="grp-body"><div id="annexList"></div>
       <div class="btnrow" style="margin-top:10px"><button class="btn" id="addPhotos">${ICON.plus} Ajouter des photos</button></div>
@@ -946,7 +986,7 @@ function fieldHtml(f){
     case "date": w=`<div class="btnrow"><input type="date" class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" style="max-width:200px"><button class="btn sm" data-today="${f.id}">Aujourd'hui</button></div>`; break;
     case "time": w=`<div class="btnrow"><input type="time" class="inp" id="${id}" data-f="${f.id}" value="${esc(v||"")}" style="max-width:150px"><button class="btn sm" data-now="${f.id}">Maintenant</button></div>`; break;
     case "check": w=`<label class="toggle"><input type="checkbox" id="${id}" data-f="${f.id}" ${v?"checked":""}> Oui</label>`; break;
-    case "choice": w=`<div class="seg" role="group" aria-label="${esc(f.label)}">${f.options.map(o=>{ const on=v===o.label; const tone=/^(ok|oui|présent|conforme)$/i.test(o.label)?"v-ok":/^(nok|non|non présent|non conforme)$/i.test(o.label)?"v-nok":""; return `<button type="button" class="${on?"on ":""}${tone}" data-choice="${f.id}" data-val="${esc(o.label)}" aria-pressed="${on}">${esc(o.label)}</button>`; }).join("")}</div>`; break;
+    case "choice": w=`<div class="seg" role="group" aria-label="${esc(f.label)}">${f.options.map(o=>{ const on=v===o.label; const tone=/^(ok|oui|présent|conforme|fonctionnement ok)$/i.test(o.label)?"v-ok":/^(nok|non|non présent|non conforme|ne fonctionne pas)$/i.test(o.label)?"v-nok":/^(dégradé|fonctionnement dégradé|degrade)$/i.test(o.label)?"v-warn":""; return `<button type="button" class="${on?"on ":""}${tone}" data-choice="${f.id}" data-val="${esc(o.label)}" aria-pressed="${on}" ${o.color?`style="${on?`background:${esc(o.color)};border-color:${esc(o.color)}`:`border-color:${esc(o.color)};color:${esc(o.color)}`}"`:""}>${esc(o.label)}</button>`; }).join("")}</div>`; break;
     case "photo": w=`<div class="media">${v?`<img src="${v}" alt="">`:""}<button class="btn sm" data-photo="${f.id}">${v?"Remplacer":"Prendre ou choisir une photo"}</button>${v?`<button class="btn sm ghost danger" data-clearf="${f.id}">Retirer</button>`:""}</div>`; break;
     case "signature": w=`<div class="media">${v?`<img class="sig-prev" src="${v}" alt="Signature">`:""}<button class="btn sm" data-sign="${f.id}">${v?"Refaire la signature":"Signer"}</button>${v?`<button class="btn sm ghost danger" data-clearf="${f.id}">Effacer</button>`:""}</div>`; break;
   }
@@ -994,6 +1034,36 @@ function setVal(fid, v, opts){
         }
       }
     }
+    /* Même numéro -> déduit le téléphone du restaurant (McDo uniquement, via la liste embarquée) */
+    if (emailF && MCDO_PHONES){
+      const phoneF = S.tpl.fields.find(x=>x.auto==="site-phone-mcdo");
+      if (phoneF){
+        const already = S.draft.values[phoneF.id];
+        const wasAuto = S.draft.autoFields[phoneF.id];
+        if (!isFilled(already) || wasAuto){
+          const digits = String(v||"").replace(/\D/g,"").replace(/^0+/,"");
+          const tel = digits ? MCDO_PHONES[digits] : null;
+          setVal(phoneF.id, tel ? formatFrPhone(tel) : "", {auto:true});
+          refreshField(phoneF.id);
+        }
+      }
+    }
+    /* Même numéro -> déduit l'adresse du restaurant (McDo uniquement, via la liste embarquée).
+       Pas conditionné à la présence d'un champ email-mcdo : certains PV McDo (Dashboard, Double
+       Check) n'ont pas de champ email mais ont un champ Adresse. */
+    if (MCDO_ADDRESSES){
+      const addrF = S.tpl.fields.find(x=>x.auto==="site-address-mcdo");
+      if (addrF){
+        const already = S.draft.values[addrF.id];
+        const wasAuto = S.draft.autoFields[addrF.id];
+        if (!isFilled(already) || wasAuto){
+          const digits = String(v||"").replace(/\D/g,"").replace(/^0+/,"");
+          const address = digits ? MCDO_ADDRESSES[digits] : null;
+          setVal(addrF.id, address || "", {auto:true});
+          refreshField(addrF.id);
+        }
+      }
+    }
   }
   /* Nom de restaurant McDo choisi/tapé (via l'autosuggestion) -> déduit le numéro (et en cascade l'email) */
   if (f && f.auto==="site-client" && !auto && MCDO_NAME_TO_NUM && S.tpl.fields.some(x=>x.auto==="site-email-mcdo")){
@@ -1027,8 +1097,23 @@ function setVal(fid, v, opts){
     }
   }
 }
+// à rappeler après la modification d'un champ qui contrôle la visibilité d'une
+// rubrique (ex. "ORB - Comptoir": OUI/NON) pour faire apparaître/disparaître
+// la checklist correspondante, sans perdre l'état ouvert/fermé des autres rubriques
+function refreshVisibility(changedFid){
+  const controls = S.tpl.fields.some(f=>f.visibleIf && f.visibleIf.field===changedFid);
+  if (!controls) return;
+  const el = $("#groups"); if(!el) return;
+  const prevOpen = new Map($$("#groups details").map(x=>[x.dataset.g, x.open]));
+  const groups = visibleGroups(S.tpl, S.draft.values);
+  el.innerHTML = [...groups.entries()].map(([g,fs],gi)=>groupHtml(g,fs,gi)).join("");
+  // une rubrique qui vient d'apparaître (ex. "ORB Comptoir" passé à OUI) s'ouvre
+  // directement : elle vient de devenir pertinente, le technicien doit la voir
+  $$("#groups details").forEach(x=>{ x.open = prevOpen.has(x.dataset.g) ? prevOpen.get(x.dataset.g) : true; });
+  updateStats();
+}
 function updateStats(){
-  const tot=S.tpl.fields.length, n=countFilled(S.draft,S.tpl);
+  const tot=countableFields(S.tpl).length, n=countFilled(S.draft,S.tpl);
   const st=$("#stat"); if(st) st.textContent = `${n} / ${tot}`;
   const sf=$("#statFill"); if(sf){ sf.style.width = `${tot ? Math.round(n/tot*100) : 0}%`; const bar=sf.closest(".pbar"); if(bar) bar.setAttribute("aria-valuenow", n); }
   $$("#groups details").forEach(det => {
@@ -1053,7 +1138,7 @@ function bindFill(){
   G.addEventListener("click", async e => {
     const b = e.target.closest("button"); if(!b) return;
     if (b.dataset.mcdopick){ setVal(b.dataset.mcdopick, b.dataset.mcdoval); refreshField(b.dataset.mcdopick); return; }
-    if (b.dataset.choice){ const fid=b.dataset.choice; const cur=S.draft.values[fid]; setVal(fid, cur===b.dataset.val ? "" : b.dataset.val); refreshField(fid); return; }
+    if (b.dataset.choice){ const fid=b.dataset.choice; const cur=S.draft.values[fid]; setVal(fid, cur===b.dataset.val ? "" : b.dataset.val); refreshField(fid); refreshVisibility(fid); return; }
     if (b.dataset.today){ const t=new Date(); const v=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; setVal(b.dataset.today, v); refreshField(b.dataset.today); return; }
     if (b.dataset.now){ const t=new Date(); const v=`${String(t.getHours()).padStart(2,"0")}:${String(t.getMinutes()).padStart(2,"0")}`; setVal(b.dataset.now, v); refreshField(b.dataset.now); return; }
     if (b.dataset.clearf){ setVal(b.dataset.clearf, ""); refreshField(b.dataset.clearf); return; }
@@ -1069,14 +1154,14 @@ function bindFill(){
         if(f.type==="choice" && !isFilled(S.draft.values[f.id]) && f.options[0]){
           const bn = borneNum(f.label);
           if (active && bn && !active[bn]){ skipped++; return; }
-          S.draft.values[f.id]=f.options[0].label; refreshField(f.id); n++;
+          S.draft.values[f.id]=f.options[0].label; refreshField(f.id); refreshVisibility(f.id); n++;
         }
       });
       draftChanged();
       toast(n ? `${n} réponse${n>1?"s":""} remplie${n>1?"s":""}${skipped?` (${skipped} ignorée${skipped>1?"s":""}, borne non renseignée)`:""}` : (skipped?"Aucune borne renseignée pour l'instant":"Rien à remplir ici"));
       return;
     }
-    if (b.hasAttribute("data-clear")){ if(!confirm("Vider toutes les réponses de cette rubrique ?")) return; $$(".q", det).forEach(q=>{ delete S.draft.values[q.dataset.q]; refreshField(q.dataset.q); }); draftChanged(); return; }
+    if (b.hasAttribute("data-clear")){ if(!confirm("Vider toutes les réponses de cette rubrique ?")) return; $$(".q", det).forEach(q=>{ delete S.draft.values[q.dataset.q]; refreshField(q.dataset.q); refreshVisibility(q.dataset.q); }); draftChanged(); return; }
   });
 }
 async function fileToJpeg(file, max=1600, q=0.82){
@@ -1282,10 +1367,36 @@ async function buildPdf(tpl, draft){
   const imgCache = new Map();
   const embed = async d => { if(imgCache.has(d)) return imgCache.get(d); const bytes=dataUrlToBytes(d); const im = d.startsWith("data:image/png") ? await doc.embedPng(bytes) : await doc.embedJpg(bytes); imgCache.set(d,im); return im; };
   for (const f of tpl.fields){
-    const v = draft.values[f.id]; if(!isFilled(v)) continue;
+    // un champ "mirror" n'a pas sa propre valeur : il réaffiche celle d'un autre
+    // champ du modèle (ex. le type NGK/SAT choisi dans le Matériel, recopié dans
+    // l'en-tête de la checklist Installation correspondante)
+    let v = draft.values[f.id];
+    if (f.type==="mirror"){ const src=tpl.fields.find(x=>x.id===f.source); v = src ? draft.values[src.id] : undefined; }
+    if(!isFilled(v)) continue;
     const page = pages[f.page]; if(!page) continue;
     if (f.type==="check"){ drawMark(page, toPdf(page,f), f.mark); continue; }
     if (f.type==="choice" && f.choiceMode==="boxes"){ const o=f.strikeOpposite ? f.options.find(o=>o.label!==v) : f.options.find(o=>o.label===v); if(o && o.box){ const pg=pages[o.box.page ?? f.page]; drawMark(pg, toPdf(pg,o.box), f.mark); } continue; }
+    if (f.type==="choice" && f.choiceMode==="color"){
+      const o = f.options.find(o=>o.label===v);
+      if (o && o.color){
+        const r=toPdf(page,f); const hex=o.color.replace("#",""); const cr=parseInt(hex.slice(0,2),16)/255, cg=parseInt(hex.slice(2,4),16)/255, cb=parseInt(hex.slice(4,6),16)/255;
+        page.drawRectangle({x:r.x,y:r.y,width:r.w,height:r.h,color:rgb(cr,cg,cb)});
+        // le libellé (OK/NOK/En cours/N/A) est redessiné par-dessus la pastille,
+        // sauf quand le champ force fontSize:0 (pastille volontairement trop
+        // étroite pour du texte, ex. le suivi Turn Over) ; couleur du texte
+        // choisie selon le contraste de la couleur de fond
+        if (f.fontSize !== 0){
+          const lum = 0.299*cr*255 + 0.587*cg*255 + 0.114*cb*255;
+          const txtColor = lum < 150 ? rgb(1,1,1) : rgb(0,0,0);
+          const label = safeB(v); const pad=3;
+          let size = Math.min(f.fontSize || 9.5, Math.max(6, r.h*0.68));
+          while (bold.widthOfTextAtSize(label,size) > r.w-2*pad && size>5) size -= 0.25;
+          const tw = bold.widthOfTextAtSize(label,size);
+          page.drawText(label, {x:r.x+(r.w-tw)/2, y:r.y+(r.h-size*0.72)/2, size, font:bold, color:txtColor});
+        }
+      }
+      continue;
+    }
     const r = toPdf(page, f);
     if (f.eraseBg) page.drawRectangle({x:r.x, y:r.y, width:r.w, height:r.h, color:rgb(1,1,1)});
     if (f.type==="photo" || f.type==="signature"){
@@ -1582,6 +1693,8 @@ function maybeShowChangelog(){
     if ("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }
     loadMcdoRestaurants();
     loadQuickRestaurants();
+    loadMcdoPhones();
+    loadMcdoAddresses();
     if (S.view === "home"){ maybeShowOnboarding(); maybeShowChangelog(); }
     // maybeShowChangelog() ne fait rien tant que le tuto de démarrage n'a pas été vu
     // (ONBOARD_KEY) : pas de double popup pour les nouveaux utilisateurs, seulement
