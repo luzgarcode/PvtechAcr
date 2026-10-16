@@ -457,8 +457,8 @@ const PIR=[
   desc:'Ses perroquets attaquent plusieurs navires à la fois et peuvent parfois les immobiliser un instant.',good:'Chaloupes, sloops',bad:'Blindage',
   look:{coat:'#2a7a5a',hat:'bandana',hatCol:'#f1c40f',weap:'parrot',long:1,hair:'#1a1210'}},
  {id:'artificier',name:'Artificier',title:'Poseur de barils',rar:'rare',cost:110,ups:[100,160],kind:'mine',pierce:.5,
-  lv:[L(40,2.4,2.2,{splash:.9,mines:2}),L(65,2.2,2.5,{splash:1,mines:3}),L(100,2,2.8,{splash:1.1,mines:4})],tags:['Pièges','Zone'],
-  desc:'Pose des barils de poudre dans le chenal à sa portée. Ils explosent au passage d’un navire.',good:'Entrées de chenal',bad:'Gros navires très solides',
+  lv:[L(40,2,2.2,{splash:.9,mines:3}),L(65,1.7,2.5,{splash:1,mines:5}),L(100,1.4,2.8,{splash:1.1,mines:7})],tags:['Pièges','Zone'],
+  desc:'Pose des barils de poudre dans le chenal à sa portée (3 en même temps, jusqu’à 7 au niveau 3). Ils explosent au passage d’un navire, et il en repose un aussitôt.',good:'Entrées de chenal',bad:'Gros navires très solides',
   look:{coat:'#5a4a3a',hat:'skullcap',hatCol:'#7a2a1a',weap:'barrel',beard:'#1a1210'}},
  {id:'chirurgien',name:'Chirurgien',title:'Scie et rhum',rar:'rare',cost:100,ups:[100,160],kind:'none',
   lv:[L(0,0,0,{heal:.5}),L(0,0,0,{heal:1}),L(0,0,0,{heal:1.5})],tags:['Soin'],
@@ -974,7 +974,10 @@ function update(dt){
     if(p.kind==='mine'){
       if(t.cd<=0&&S.mines.filter(m=>m.owner===t).length<st.mines){
         if(!t.spots){t.spots=[];for(const P of PATHS)for(let d=0;d<P.len;d+=8){const q=posAt(P,d);if(q.y>4&&Math.hypot(q.x-t.x,q.y-t.y)<=R)t.spots.push(q)}}
-        if(t.spots.length){const q=t.spots[Math.floor(Math.random()*t.spots.length)];S.mines.push({x:q.x+(Math.random()-.5)*8,y:q.y+(Math.random()-.5)*8,owner:t,st,arm:.4,sx:t.x,sy:t.y,ft:0});t.cd=st.rate;t.ang=Math.atan2(q.y-t.y,q.x-t.x);sfx('throw')}
+        if(t.spots.length){
+          // On tire quelques emplacements et on garde le plus éloigné des barils déjà posés
+          const mine=S.mines.filter(m=>m.owner===t);let q=null,bd=-1;
+          for(let k=0;k<10;k++){const c=t.spots[Math.floor(Math.random()*t.spots.length)];const d=mine.length?Math.min(...mine.map(m=>Math.hypot(m.x-c.x,m.y-c.y))):1;if(d>bd){bd=d;q=c}}S.mines.push({x:q.x+(Math.random()-.5)*8,y:q.y+(Math.random()-.5)*8,owner:t,st,arm:.4,sx:t.x,sy:t.y,ft:0});t.cd=st.rate;t.ang=Math.atan2(q.y-t.y,q.x-t.x);sfx('throw')}
       }
       continue;
     }
