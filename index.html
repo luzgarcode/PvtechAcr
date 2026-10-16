@@ -244,22 +244,22 @@ const DOUB='<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="#e8b3
 
 // =============== Îles ===============
 const MAPS=[
-  {id:'crique',name:'Crique du Crâne',diff:'Facile',tier:1,hp:1,gold:170,lives:20,
+  {id:'crique',name:'Crique du Crâne',diff:'Facile',tier:1,hp:.9,gold:220,lives:20,
    desc:'Un long chenal en S, idéal pour apprendre à placer son équipage.',
    paths:[[[1,-1.4],[1,2],[7,2],[7,5],[2,5],[2,8],[6,8],[6,11],[4,11],[4,12.3]]],
    deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[8,9,'rock'],[0,7,'rock'],[4,0,'barrels']],
    pal:{grass:['#5c8d44','#649648','#57873f','#5f9046'],sand:'#d9bf86',sand2:'#e6d09a',sand3:'#d2b77c',water:['#4fb3c2','#2b8aa3','#1d6f8b'],tuft:'rgba(30,70,20,.45)'}},
-  {id:'brumes',name:'Lagon des Brumes',diff:'Moyen',tier:2,hp:1.22,gold:190,lives:20,
+  {id:'brumes',name:'Lagon des Brumes',diff:'Moyen',tier:2,hp:1.08,gold:250,lives:20,
    desc:'Deux entrées qui se rejoignent au milieu du lagon. La brume cache les navires.',
    paths:[[[1,-1.4],[1,4],[4,4],[4,7],[7,7],[7,10],[4,10],[4,12.3]],[[7,-1.4],[7,4],[4,4],[4,7],[7,7],[7,10],[4,10],[4,12.3]]],
    deco:[[0,0,'palm'],[4,0,'rock'],[0,9,'palm'],[8,13,'rock'],[0,13,'palm'],[2,11,'barrels']],fog:true,
    pal:{grass:['#4f7d58','#557f5c','#4a7652','#527a57'],sand:'#cbbd98',sand2:'#d9ccaa',sand3:'#bfb08a',water:['#5fa7b0','#3a8193','#2a6577'],tuft:'rgba(20,50,30,.45)'}},
-  {id:'recif',name:'Récif du Kraken',diff:'Difficile',tier:3,hp:1.45,gold:210,lives:15,
+  {id:'recif',name:'Récif du Kraken',diff:'Difficile',tier:3,hp:1.25,gold:280,lives:18,
    desc:'Un chenal en zigzag entre les coraux. Le Kraken y chasse dès la vague 6.',
    paths:[[[-1.4,1],[7,1],[7,4],[1,4],[1,7],[7,7],[7,10],[4,10],[4,12.3]]],
    deco:[[0,2,'coral'],[8,2,'coral'],[4,5,'coral'],[0,9,'coral'],[8,12,'palm'],[0,12,'rock']],krakenEarly:true,
    pal:{grass:['#6a9a4a','#72a24f','#649445','#6c9c4b'],sand:'#e6c99c',sand2:'#f0d8ae',sand3:'#d8b98a',water:['#3fc4cf','#1f9ab5','#137093'],tuft:'rgba(30,70,20,.4)'}},
-  {id:'volcan',name:'Île du Volcan',diff:'Cauchemar',tier:4,hp:1.7,gold:240,lives:12,
+  {id:'volcan',name:'Île du Volcan',diff:'Cauchemar',tier:4,hp:1.4,gold:320,lives:15,
    desc:'Deux chenaux séparés et très courts. Le moindre trou dans la défense coûte cher.',
    paths:[[[1,-1.4],[1,6],[3,6],[3,11],[4,11],[4,12.3]],[[7,-1.4],[7,3],[5,3],[5,8],[7,8],[7,11],[4,11],[4,12.3]]],
    deco:[[0,0,'lava'],[4,1,'lava'],[8,13,'lava'],[0,13,'lava'],[0,10,'skull'],[8,5,'skull']],embers:true,
@@ -443,7 +443,7 @@ function waveDef(n){
   return g;
 }
 function hpMul(n){
-  const b=m=>1+.14*(m-1)+.008*(m-1)*(m-1);
+  const b=m=>1+.12*(m-1)+.006*(m-1)*(m-1);
   return M.hp*(n<=MAIN_WAVES?b(n):b(MAIN_WAVES)*Math.pow(1.14,n-MAIN_WAVES));
 }
 
@@ -826,7 +826,7 @@ function launchWave(){
   sfx('horn');updateHud(true);
 }
 function waveCleared(w){
-  const g=12+Math.min(w.n,MAIN_WAVES)*2;let extra=0;
+  const g=15+Math.min(w.n,MAIN_WAVES)*3;let extra=0;
   for(const t of S.towers){const st=base(t);if(st.gold)extra+=st.gold;if(st.heal)S.healAcc+=st.heal}
   S.gold+=g+extra;
   text(W/2,H/2,'Vague '+w.n+' repoussée  +'+(g+extra),'#97d36f');
