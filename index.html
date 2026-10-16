@@ -899,6 +899,31 @@ const PERKS={
   harponneur:[null,{dm:2,slowAoe:.9},{dm:4,slowAoe:1.1,slowMul:.8},{dm:12,slowAoe:1.3,slowMul:.8,stun:1,stunT:1}],
   bombardier:[null,{dm:2,cluster:3},{dm:3.5,cluster:5},{dm:10,cluster:8}],
   mousse:[null,{dm:1.5,nAdd:1},{dm:3.5,nAdd:2},{dm:10,nAdd:3}],
+  vigie:[null,{dm:2,crit:.2,critMul:3},{dm:4,crit:.35,critMul:3},{dm:12,crit:.5,critMul:3}],
+  cuisinier:[null,{dm:2,goldMul:2},{dm:3,goldMul:3},{dm:5,goldMul:5}],
+  grenadier:[null,{dm:2,cluster:2},{dm:3.5,cluster:3},{dm:10,cluster:5}],
+  charpentier:[null,{dm:2,brkMul:1.5},{dm:4,brkMul:2},{dm:12,brkMul:3}],
+  flambeuse:[null,{dm:1.5,burnMul:2,burnSpread:1},{dm:3,burnMul:3,burnSpread:2},{dm:8,burnMul:6,burnSpread:3}],
+  tresorier:[null,{dm:2,goldKillMul:2},{dm:3,goldKillMul:3},{dm:5,goldKillMul:5}],
+  quartiermaitre:[null,{dm:2,auraMul:1.4},{dm:4,auraMul:1.8},{dm:10,auraMul:2.5}],
+  violoneux:[null,{dm:1,auraMul:1.4},{dm:1,auraMul:1.8},{dm:1,auraMul:2.5}],
+  lancefilets:[null,{dm:2,splashMul:1.2,slowMul:.85},{dm:3,splashMul:1.4,slowMul:.75},{dm:6,splashMul:1.7,slowMul:.65}],
+  duelliste:[null,{dm:2,execAdd:.1},{dm:4,execAdd:.2},{dm:12,execAdd:.3}],
+  exorciste:[null,{dm:2,vsGhostMul:1.5},{dm:4,vsGhostMul:2},{dm:12,vsGhostMul:3,blast:.6}],
+  perroquets:[null,{dm:1.5,nAdd:1,stunAdd:.05},{dm:3,nAdd:2,stunAdd:.1},{dm:8,nAdd:3,stunAdd:.2}],
+  artificier:[null,{dm:2,minesAdd:2,splashMul:1.2},{dm:3.5,minesAdd:4,splashMul:1.4},{dm:10,minesAdd:8,splashMul:1.7}],
+  chirurgien:[null,{dm:1,healMul:2},{dm:1,healMul:3},{dm:1,healMul:5}],
+  artilleuse:[null,{dm:2,knock:8},{dm:4,knock:12},{dm:12,knock:18,burn:30,burnT:3}],
+  sorcier:[null,{dm:2,nAdd:2},{dm:3.5,nAdd:4},{dm:10,nAdd:99}],
+  corsaire:[null,{dm:1.5,nAdd:1},{dm:3,nAdd:2},{dm:8,nAdd:3}],
+  chasseur:[null,{dm:2,vsBigMul:1.3,slowMul:.8},{dm:4,vsBigMul:1.6,slowMul:.7},{dm:12,vsBigMul:2,slowMul:.5}],
+  navigatrice:[null,{dm:1,auraMul:1.4},{dm:1,auraMul:1.8},{dm:1,auraMul:2.5}],
+  poudrier:[null,{dm:2,burnMul:2,splashMul:1.15},{dm:3.5,burnMul:3,splashMul:1.3},{dm:10,burnMul:5,splashMul:1.5}],
+  sirene:[null,{dm:2,stunAdd:.1,knockMul:1.5},{dm:4,stunAdd:.2,knockMul:2},{dm:10,stunAdd:.3,knockMul:3}],
+  capitaine:[null,{dm:2,auraMul:1.3},{dm:4,auraMul:1.6},{dm:10,auraMul:2.2}],
+  demolisseur:[null,{dm:2,blast:.7},{dm:4,blast:1},{dm:12,blast:1.4}],
+  hollandais:[null,{dm:2,nAdd:2,vsGhostMul:1.5},{dm:3.5,nAdd:4,vsGhostMul:2},{dm:10,nAdd:8,vsGhostMul:3}],
+  barbenoire:[null,{dm:2,burnMul:1.5,fearSet:.7},{dm:3.5,burnMul:2,fearSet:.6,cluster:2},{dm:10,burnMul:3,fearSet:.5,cluster:4}],
 };
 const PERK_TXT={
   canonnier:['','Boulets explosifs (petite zone)','Grosse explosion qui met le feu','Explosion géante, feu et recul'],
@@ -906,6 +931,31 @@ const PERK_TXT={
   harponneur:['','Ralentit aussi les navires voisins','Ralentit plus fort et plus large','Immobilise 1 s (puis 2 s d’immunité, sauf Kraken)'],
   bombardier:['','3 éclats autour de chaque explosion','5 éclats','8 éclats'],
   mousse:['','1 cible de plus qu’au niveau 3','2 cibles de plus qu’au niveau 3','3 cibles de plus qu’au niveau 3'],
+  vigie:['','20 % de tirs critiques ×3','35 % de tirs critiques ×3','50 % de tirs critiques ×3'],
+  cuisinier:['','Or par vague ×2','Or par vague ×3','Or par vague ×5'],
+  grenadier:['','2 éclats autour de chaque grenade','3 éclats','5 éclats'],
+  charpentier:['','Retire 50 % de blindage en plus','Retire 2 fois plus de blindage','Retire 3 fois plus de blindage'],
+  flambeuse:['','Feu ×2 qui se propage à 1 navire voisin','Feu ×3, propagé à 2 voisins','Feu ×6, propagé à 3 voisins'],
+  tresorier:['','Or par navire coulé ×2','Or par navire coulé ×3','Or par navire coulé ×5'],
+  quartiermaitre:['','Aura de dégâts ×1,4','Aura de dégâts ×1,8','Aura de dégâts ×2,5'],
+  violoneux:['','Aura de cadence ×1,4 et plus large','Aura de cadence ×1,8','Aura de cadence ×2,5'],
+  lancefilets:['','Filet plus grand et plus collant','Filet encore plus grand','Filet géant qui ralentit énormément'],
+  duelliste:['','Achève sous 40 % de vie','Achève sous 50 % de vie','Achève sous 60 % de vie'],
+  exorciste:['','Dégâts aux fantômes ×1,5 en plus','Dégâts aux fantômes ×2 en plus','Fantômes ×3, orbes explosifs'],
+  perroquets:['','1 perroquet de plus, étourdit plus souvent','2 perroquets de plus','3 perroquets de plus, étourdissent très souvent'],
+  artificier:['','2 barils de plus, plus gros','4 barils de plus','8 barils de plus, énormes explosions'],
+  chirurgien:['','Répare 2 fois plus de trésor','Répare 3 fois plus','Répare 5 fois plus'],
+  artilleuse:['','Le boulet fait reculer les navires','Recul plus fort','Recul énorme et boulet enflammé'],
+  sorcier:['','2 rebonds de plus','4 rebonds de plus','L’éclair frappe tous les navires à portée'],
+  corsaire:['','1 cible de plus','2 cibles de plus','3 cibles de plus'],
+  chasseur:['','Encore plus fort contre les gros, ralentit plus','Gros navires ×1,6 en plus','Gros navires ×2 en plus, ralentit énormément'],
+  navigatrice:['','Aura de portée ×1,4 et plus large','Aura de portée ×1,8','Aura de portée ×2,5'],
+  poudrier:['','Feu ×2 et zone plus grande','Feu ×3, zone encore plus grande','Feu ×5, zone géante'],
+  sirene:['','Étourdit plus souvent, recul plus fort','Étourdit encore plus, recul ×2','Étourdit presque à chaque chant, recul ×3'],
+  capitaine:['','Auras ×1,3','Auras ×1,6','Auras ×2,2'],
+  demolisseur:['','Boulets explosifs','Grosse explosion','Explosion géante'],
+  hollandais:['','2 rebonds de plus, fantômes ×1,5','4 rebonds de plus, fantômes ×2','8 rebonds de plus, fantômes ×3'],
+  barbenoire:['','Feu plus fort, terreur plus forte','Bombes à éclats, terreur encore plus forte','Pluie de bombes et terreur absolue'],
 };
 function perkText(id,k){return PERK_TXT[id]?PERK_TXT[id][k]:k?`Dégâts ×${STAR_DMG[k]}, portée +${Math.round((STAR_RNG[k]-1)*100)} %`:''}
 const MERGE=[{need:2,gold:500},{need:2,gold:1200},{need:3,gold:3000}];
@@ -913,10 +963,18 @@ function starStats(b,k,id){
   if(!k)return b;
   const P=PERKS[id]&&PERKS[id][k];
   if(P){const o=Object.assign({},b,{dmg:b.dmg*P.dm,range:b.range*STAR_RNG[k]});
-    for(const f of ['blast','lineN','slowAoe','stun','stunT','cluster','knock'])if(P[f]!==undefined)o[f]=P[f];
-    if(P.burn){o.burn=P.burn;o.burnT=P.burnT}
-    if(P.slowMul&&o.slow)o.slow*=P.slowMul;
-    if(P.nAdd)o.n=(b.n||1)+P.nAdd;
+    for(const [f,v] of Object.entries(P)){
+      if(f==='dm'||f==='burnT')continue;
+      if(f==='slowMul'){if(o.slow)o.slow*=v}
+      else if(f==='nAdd')o.n=Math.min(99,(b.n||1)+v);
+      else if(f==='auraMul'){if(o.aura){o.aura=Object.assign({},o.aura);for(const a in o.aura)o.aura[a]*=v}}
+      else if(f.endsWith('Mul')){const key=f.slice(0,-3);if(o[key]!==undefined)o[key]*=v}
+      else if(f.endsWith('Add')){const key=f.slice(0,-3);o[key]=(o[key]||0)+v}
+      else if(f==='fearSet')o.fear=v;
+      else if(f==='burn'){o.burn=v;o.burnT=P.burnT||3}
+      else o[f]=v;
+    }
+    if(P.stunAdd&&o.stun>.9)o.stun=.9;
     return o}
   const o=Object.assign({},b,{dmg:b.dmg*STAR_DMG[k],range:b.range*STAR_RNG[k]});
   if(o.splash)o.splash*=1+.1*k;
@@ -973,10 +1031,12 @@ function hitEnemy(e,st,amt){
   if(st.vsGhost&&e.def.ghost){d*=st.vsGhost;e.noRegen=3}
   if(st.vsBig&&e.def.big)d*=st.vsBig;
   if(st.exec&&e.hp/e.max<st.exec)d*=st.execMul;
+  if(st.crit&&Math.random()<st.crit){d*=st.critMul||3;if(Math.random()<.3)text(e.x,e.y-e.def.size-4,'Critique !','#ffd23f')}
   damage(e,d,st.pierce||0);
   if(e.dead)return;
   if(st.slow){e.slowF=e.slowT>0?Math.min(e.slowF,st.slow):st.slow;e.slowT=Math.max(e.slowT,st.slowT)}
-  if(st.burn){e.burnDps=e.burnT>0?Math.max(e.burnDps,st.burn):st.burn;e.burnT=Math.max(e.burnT,st.burnT)}
+  if(st.burn){e.burnDps=e.burnT>0?Math.max(e.burnDps,st.burn):st.burn;e.burnT=Math.max(e.burnT,st.burnT)
+    if(st.burnSpread){let left=st.burnSpread;for(const o of S.enemies){if(left<=0)break;if(o!==e&&!o.dead&&Math.hypot(o.x-e.x,o.y-e.y)<TS*1.1){o.burnDps=o.burnT>0?Math.max(o.burnDps,st.burn):st.burn;o.burnT=Math.max(o.burnT,st.burnT);left--}}}}
   if(st.brk){e.brk=e.brkT>0?Math.max(e.brk,st.brk):st.brk;e.brkT=Math.max(e.brkT,st.brkT)}
   if(st.stun&&!e.def.kraken&&(e.stunImm||0)<=0&&Math.random()<st.stun){e.stunT=Math.max(e.stunT,st.stunT);e.stunImm=e.stunT+2}
   if(st.knock&&!e.def.big)e.d=Math.max(0,e.d-st.knock);
