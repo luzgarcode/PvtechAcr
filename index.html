@@ -53,6 +53,22 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .homeStats b{color:var(--parch)}
 
 /* Îles */
+.lbTabs{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.lbTab{border:1px solid var(--line);background:var(--timber-2);border-radius:10px;padding:8px 2px;font-weight:800;font-size:13px}
+.lbTab[aria-selected="true"]{background:var(--gold);color:var(--timber);border-color:var(--gold-deep)}
+.lbMe{display:flex;gap:6px;align-items:center;background:linear-gradient(var(--plank),var(--timber-2));border:1px solid var(--line);border-radius:12px;padding:8px}
+.lbMe label{font-weight:800;font-size:13px;color:var(--muted);flex:none}
+.lbMe input{flex:1;min-width:0;font:inherit;font-weight:800;color:var(--parch);background:var(--timber);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+.lbMe input:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.lbNote{margin:0;color:var(--muted);font-weight:700;font-size:13px;text-align:center;line-height:1.35;text-wrap:balance}
+.lbList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.lbRow{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:8px;background:var(--timber-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-weight:800}
+.lbRow .rk{font-family:var(--display);font-size:22px;line-height:1;color:var(--muted);text-align:center}
+.lbRow .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbRow .sc{font-variant-numeric:tabular-nums;color:var(--gold)}
+.lbRow .sc small{color:var(--muted);font-weight:700;margin-left:3px}
+.lbRow.r1 .rk{color:#f4bb4c}.lbRow.r2 .rk{color:#d6d9dd}.lbRow.r3 .rk{color:#d9905a}
+.lbRow.me{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
 .mapCard{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center;text-align:left;background:linear-gradient(var(--plank),var(--timber-2));border:1px solid var(--line);border-radius:14px;padding:10px}
 .mapCard canvas{width:96px;height:149px;border-radius:8px;display:block}
 .mapCard h3{font-family:var(--display);font-weight:400;font-size:26px;line-height:1;margin:0 0 4px}
@@ -171,7 +187,16 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
     <div class="homeBtns">
       <button class="big" id="bPlay">Prendre la mer</button>
       <button class="big alt" id="bCrew">Taverne des pirates</button>
+      <button class="big alt" id="bLeader">Classement mondial</button>
     </div>
+  </section>
+
+  <section class="view" id="vLeader" hidden>
+    <div class="mhead"><button class="back" data-go="home">Retour</button><h2>Classement</h2></div>
+    <div class="lbTabs" role="tablist" id="lbTabs"></div>
+    <div class="lbMe"><label for="lbPseudo">Votre pseudo</label><input id="lbPseudo" maxlength="16" autocomplete="off" placeholder="Capitaine…"><button class="act up" id="lbSave">Enregistrer</button></div>
+    <p class="lbNote" id="lbNote"></p>
+    <div class="scroll"><ol class="lbList" id="lbList"></ol></div>
   </section>
 
   <section class="view" id="vMaps" hidden>
@@ -444,7 +469,7 @@ function waveDef(n){
 }
 function hpMul(n){
   const b=m=>1+.12*(m-1)+.006*(m-1)*(m-1);
-  return M.hp*(n<=MAIN_WAVES?b(n):b(MAIN_WAVES)*Math.pow(1.14,n-MAIN_WAVES));
+  return M.hp*(n<=MAIN_WAVES?b(n):b(MAIN_WAVES)*Math.pow(1.10,n-MAIN_WAVES));
 }
 
 // =============== Sauvegarde ===============
@@ -837,9 +862,9 @@ function waveCleared(w){
   const rec=mapRec(M.id);rec.best=Math.max(rec.best,w.n);
   if(w.n===MAIN_WAVES&&!S.endless&&S.lives>0){rec.won=true;const vb=150*M.tier;S.earned+=vb;SV.doublons+=vb;S.won=true;sfx('win')}
   SV.maps[M.id]=rec;save();
-  if(S.won)showEnd(true);
+  if(S.won){showEnd(true);pushScores()}
 }
-function gameOver(){S.over=true;S.sel=null;S.selTile=null;S.pick=null;renderPanel();showEnd(false)}
+function gameOver(){S.over=true;S.sel=null;S.selTile=null;S.pick=null;renderPanel();showEnd(false);pushScores()}
 
 function update(dt){
   computeAuras();
@@ -1124,12 +1149,68 @@ $('sheet').addEventListener('click',ev=>{
 // =============== Navigation ===============
 let view='home',crewMode='tavern',chosenMap=null;
 function show(v){
-  view=v;for(const [k,id] of [['home','vHome'],['maps','vMaps'],['crew','vCrew'],['game','vGame']])$(id).hidden=k!==v;
+  view=v;for(const [k,id] of [['home','vHome'],['maps','vMaps'],['crew','vCrew'],['game','vGame'],['leader','vLeader']])$(id).hidden=k!==v;
+  if(v==='leader')renderLeader();
   if(v==='home')renderHome();if(v==='maps')renderMaps();if(v==='crew')renderCrew();if(v==='game')resize();
 }
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
 $('bPlay').onclick=()=>{initAudio();show('maps')};
 $('bCrew').onclick=()=>{initAudio();crewMode='tavern';show('crew')};
+$('bLeader').onclick=()=>{initAudio();show('leader')};
+
+// =============== Classement mondial (base partagée) ===============
+// Un document par joueur : scores/<id> = {pseudo, best:{île: vague}, at}
+let LB={db:null,uid:null,docs:[],state:'loading',map:'crique',writeOk:true,pending:null};
+const SHORT={crique:'Crique',brumes:'Lagon',recif:'Récif',volcan:'Volcan'};
+function cleanPseudo(v){return String(v||'').replace(/\s+/g,' ').trim().slice(0,16)}
+function myBest(){const b={};for(const m of MAPS){const r=mapRec(m.id);if(r.best)b[m.id]=r.best}return b}
+function pushScores(){
+  if(!LB.db||!LB.uid||!LB.writeOk||!SV.pseudo)return;
+  const mine=LB.docs.find(d=>d.id===LB.uid),old=mine?mine.best||{}:{},best=Object.assign({},old);
+  let changed=!mine||mine.pseudo!==SV.pseudo;
+  for(const [k,v] of Object.entries(myBest()))if(!(best[k]>=v)){best[k]=v;changed=true}
+  if(!changed)return;
+  const body={pseudo:SV.pseudo,best,at:Date.now()};
+  LB.pending=(LB.pending||Promise.resolve()).then(()=>LB.db.doc('scores/'+LB.uid).set(body)).catch(e=>{
+    if(e&&(e.code==='invalid_argument'||e.code==='not_granted')){LB.writeOk=false;if(view==='leader')renderLeader()}
+  });
+}
+(async()=>{
+  try{
+    const [db,user]=await Promise.all([window.claude?.use?.('db')??null,window.claude?.use?.('user')??null]);
+    if(!db){LB.state='off';if(view==='leader')renderLeader();return}
+    LB.db=db;LB.uid=user?await user.id():null;
+    db.collection('scores').onSnapshot(snap=>{
+      LB.docs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));LB.state='on';
+      if(view==='leader')renderLeader();
+      if(!snap.metadata.fromCache&&!LB.synced){LB.synced=true;pushScores()}
+    },()=>{LB.state='off';if(view==='leader')renderLeader()});
+  }catch(e){LB.state='off';if(view==='leader')renderLeader()}
+})();
+function renderLeader(){
+  $('lbTabs').innerHTML=MAPS.map(m=>`<button class="lbTab" role="tab" data-lb="${m.id}" aria-selected="${m.id===LB.map}">${SHORT[m.id]}</button>`).join('');
+  $('lbTabs').querySelectorAll('[data-lb]').forEach(b=>b.onclick=()=>{LB.map=b.dataset.lb;renderLeader()});
+  if(document.activeElement!==$('lbPseudo'))$('lbPseudo').value=SV.pseudo||'';
+  const note=$('lbNote'),list=$('lbList');
+  if(LB.state==='loading'){note.textContent='Chargement du classement…';list.innerHTML='';return}
+  if(LB.state==='off'){note.textContent='Le classement n’est pas disponible ici. Ouvrez le jeu depuis claude.ai en étant connecté.';list.innerHTML='';return}
+  const rec=mapRec(LB.map).best;
+  note.textContent=!SV.pseudo?'Choisissez un pseudo pour apparaître dans le classement. On y entre avec sa meilleure vague repoussée sur chaque île, mode sans fin compris.'
+    :!LB.uid||!LB.writeOk?'Vous voyez le classement, mais ce compte ne peut pas y envoyer de score. Demandez au créateur du jeu de vous inviter.'
+    :`Votre record sur ${MAPS.find(m=>m.id===LB.map).name} : ${rec?rec+' vague'+(rec>1?'s':''):'aucun'}. Il s’envoie tout seul à la fin de chaque partie.`;
+  const rows=LB.docs.filter(d=>d.best&&d.best[LB.map]>0&&d.pseudo).sort((a,b)=>b.best[LB.map]-a.best[LB.map]||(a.at||0)-(b.at||0)).slice(0,100);
+  list.innerHTML='';
+  if(!rows.length){const li=document.createElement('li');li.className='lbNote';li.textContent='Personne n’a encore de score sur cette île. À vous de jouer !';list.appendChild(li);return}
+  rows.forEach((d,i)=>{
+    const li=document.createElement('li');li.className='lbRow'+(i<3?' r'+(i+1):'')+(d.id===LB.uid?' me':'');
+    const rk=document.createElement('span');rk.className='rk';rk.textContent=i+1;
+    const nm=document.createElement('span');nm.className='nm';nm.textContent=cleanPseudo(d.pseudo)||'Pirate';
+    const sc=document.createElement('span');sc.className='sc';sc.textContent=d.best[LB.map];const sm=document.createElement('small');sm.textContent='vagues';sc.appendChild(sm);
+    li.append(rk,nm,sc);list.appendChild(li);
+  });
+}
+$('lbSave').onclick=()=>{const v=cleanPseudo($('lbPseudo').value);if(!v)return;SV.pseudo=v;save();pushScores();renderLeader();$('lbSave').textContent='Enregistré';setTimeout(()=>$('lbSave').textContent='Enregistrer',1500)};
+$('lbPseudo').addEventListener('keydown',e=>{if(e.key==='Enter')$('lbSave').click()});
 $('crewBack').onclick=()=>show(crewMode==='select'?'maps':'home');
 
 function renderHome(){
@@ -1293,14 +1374,14 @@ function openPause(){if(!S||S.over||S.won)return;S.paused=true;$('pauseText').te
 $('pauseBtn').onclick=openPause;
 $('bResume').onclick=()=>{$('pauseScreen').hidden=true;S.paused=false};
 $('bRestart').onclick=()=>startGame(M);
-$('bQuit').onclick=()=>{$('pauseScreen').hidden=true;running=false;show('home')};
+$('bQuit').onclick=()=>{$('pauseScreen').hidden=true;running=false;pushScores();show('home')};
 $('bAgain').onclick=()=>startGame(M);
 $('bPort').onclick=()=>{$('endScreen').hidden=true;running=false;show('home')};
 $('bContinue').onclick=()=>{S.endless=true;S.won=false;$('endScreen').hidden=true;updateHud(true);banner('Mode sans fin','')};
 function syncSound(){$('soundBtn').setAttribute('aria-pressed',!SV.muted);$('soundWaves').style.opacity=SV.muted?.15:1}
 $('soundBtn').onclick=()=>{SV.muted=!SV.muted;save();syncSound();initAudio()};
 syncSound();
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&view==='game'&&running&&S&&!S.paused&&!S.over&&!S.won)openPause()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&view==='game'&&running&&S&&!S.paused&&!S.over&&!S.won){openPause();pushScores()}});
 
 // =============== Accueil animé ===============
 const hc=$('homeCv'),hctx=hc.getContext('2d');
