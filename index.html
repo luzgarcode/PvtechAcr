@@ -308,10 +308,10 @@ const PIR=[
   lv:[L(32,2.3,3.4,{splash:.95}),L(54,2.1,3.8,{splash:1.1}),L(88,1.9,4.2,{splash:1.25})],tags:['Zone','Perce-blindage'],
   desc:'Lance des bombes en cloche qui touchent tous les navires autour du point d’impact, en ignorant la moitié du blindage.',good:'Groupes de navires, galions',bad:'Navires isolés et rapides',
   look:{coat:'#4a3b2a',hat:'skullcap',hatCol:'#2a2a2a',weap:'mortar',beard:'#1a1210'}},
- {id:'mousse',name:'Mousse',title:'Petit mais teigneux',rar:'commun',cost:30,ups:[30,60],kind:'hit',fxs:'knife',
-  lv:[L(5,.5,1.8),L(8,.45,2),L(12,.4,2.2)],tags:['Pas cher'],
-  desc:'Il ne coûte presque rien et lance des couteaux. Parfait pour remplir une case en début de partie.',good:'Chaloupes',bad:'Tout ce qui est blindé',
-  look:{coat:'#d9c9a3',hat:'beret',hatCol:'#3a5a8a',weap:'knife',small:1}},
+ {id:'mousse',name:'Mousse',title:'Petit mais teigneux',rar:'commun',cost:30,ups:[30,60],kind:'multi',fxs:'knife',lv3name:'Moussaillon aguerri',
+  lv:[L(5,.5,1.8,{n:1}),L(8,.45,2,{n:2}),L(12,.4,2.2,{n:3,pierce:.5})],tags:['Pas cher','Multi-cibles'],
+  desc:'Il ne coûte presque rien et lance des couteaux sur plusieurs navires à la fois (2 au niveau 2, 3 au niveau 3). Au niveau 3, devenu Moussaillon aguerri, il vise les points faibles et ignore la moitié du blindage.',good:'Nuées de chaloupes et de sloops',bad:'Galions, Kraken',
+  look:{coat:'#d9c9a3',hat:'beret',hatCol:'#3a5a8a',weap:'knife',small:1},lv3look:{hat:'bandana',hatCol:'#c0392b',small:0,coat:'#b9a27a',beard:'#5a3a1a'}},
  {id:'vigie',name:'Vigie',title:'Œil du nid-de-pie',rar:'commun',cost:110,ups:[90,160],kind:'hit',fxs:'rifle',mode:1,
   lv:[L(45,2.2,4.5),L(75,2,5),L(120,1.8,5.5)],tags:['Longue portée','Cible unique'],
   desc:'Tire de très loin et très fort, mais lentement. Par défaut, elle vise le navire le plus solide.',good:'Galions, fantômes',bad:'Nuées de chaloupes',
@@ -657,7 +657,7 @@ function drawFigure(c,L,ang,t,noWeapon){
   if(!back&&!noWeapon)drawHand(c,L,ang,t);
 }
 function drawPirate(c,x,y,p,lvl,ang,s,t,opt={}){
-  const L=p.look,k=s/48;
+  const L=lvl===2&&p.lv3look?Object.assign({},p.look,p.lv3look):p.look,k=s/48;
   c.save();c.translate(x,y);c.scale(k,k);
   if(!opt.portrait)drawDeck(c,lvl,RAR[p.rar].hex);
   const bob=opt.portrait?0:Math.sin(t*3+x*.1)*.6,sc=(L.small?.86:1)*(L.big?1.06:1);
@@ -668,10 +668,10 @@ function drawPirate(c,x,y,p,lvl,ang,s,t,opt={}){
   if(!opt.portrait)for(let i=0;i<=lvl;i++){c.fillStyle='#f4bb4c';c.strokeStyle='#5a3a10';c.lineWidth=1;circ(c,-6+i*6,18.5,2.3);c.fill();c.stroke()}
   c.restore();
 }
-function portrait(cv,p,size,locked){
+function portrait(cv,p,size,locked,lvl=0){
   const d=Math.min(window.devicePixelRatio||1,3);cv.width=Math.round(size*d);cv.height=Math.round(size*d);
   const c=cv.getContext('2d');c.scale(d,d);
-  drawPirate(c,size/2,size*.56,p,0,-.35,size*.98,0,{portrait:true});
+  drawPirate(c,size/2,size*.56,p,lvl,-.35,size*.98,0,{portrait:true});
   if(locked){c.globalCompositeOperation='source-atop';c.fillStyle='rgba(30,18,10,.88)';c.fillRect(0,0,size,size);c.globalCompositeOperation='source-over'}
 }
 
@@ -765,7 +765,7 @@ function wreck(e){
 function base(t){return PBY[t.id].lv[t.lvl]}
 function eff(t){
   const p=PBY[t.id],b=base(t),bf=t.buf||{dmg:1,rate:1,range:1};
-  return Object.assign({},b,{dmg:b.dmg*bf.dmg,rate:b.rate/bf.rate,range:b.range*bf.range,pierce:p.pierce||0});
+  return Object.assign({},b,{dmg:b.dmg*bf.dmg,rate:b.rate/bf.rate,range:b.range*bf.range,pierce:b.pierce!==undefined?b.pierce:(p.pierce||0)});
 }
 function computeAuras(){
   for(const t of S.towers)t.buf={dmg:1,rate:1,range:1};
@@ -1080,6 +1080,7 @@ function statRows(p){
     if(a.rate!==undefined)rows.push(['Aura : cadence',...lv.map(l=>'+'+pct(l.aura.rate))]);
     if(a.range!==undefined)rows.push(['Aura : portée',...lv.map(l=>'+'+pct(l.aura.range))]);}
   if(p.pierce)rows.push(['Ignore le blindage',pct(p.pierce),pct(p.pierce),pct(p.pierce)]);
+  else if(has('pierce'))rows.push(['Ignore le blindage',...lv.map(l=>l.pierce?pct(l.pierce):'–')]);
   return rows;
 }
 let sheetPaused=false;
@@ -1209,12 +1210,14 @@ function renderPanel(){
     if(st.gold)parts.push(row('Or/vague',st.gold,nx&&nx.gold));
     if(st.heal)parts.push(row('Soin/vague',st.heal,nx&&nx.heal));
     if(st.goldKill)parts.push(row('Or/navire',st.goldKill,nx&&nx.goldKill));
+    if(st.n&&p.kind==='multi')parts.push(row('Cibles',st.n,nx&&nx.n));
+    if(nx&&nx.pierce&&!st.pierce)parts.push(`<b>Ignore ${pct(nx.pierce)} du blindage</b>`);
     const boosted=t.buf&&(t.buf.dmg>1||t.buf.rate>1||t.buf.range>1)?' · <b>boosté par une aura</b>':'';
     const canMode=p.kind!=='none'&&p.kind!=='mine';
-    pn.innerHTML=`<div class="tp"><canvas id="selIcon"></canvas><div class="tinfo"><div class="tname">${p.name}<span>Niveau ${t.lvl+1}</span></div><div class="tstats">${parts.join(' · ')}${boosted}</div></div></div>
+    pn.innerHTML=`<div class="tp"><canvas id="selIcon"></canvas><div class="tinfo"><div class="tname">${t.lvl===2&&p.lv3name?p.lv3name:p.name}<span>Niveau ${t.lvl+1}</span></div><div class="tstats">${parts.join(' · ')}${boosted}</div></div></div>
       <div class="tact">${nx?`<button class="act up" data-act="up" data-cost="${up}">Améliorer · ${up}</button>`:`<button class="act up" disabled>Niveau max</button>`}
       <button class="act" data-act="sell">Vendre +${refund}</button>${canMode?`<button class="act" data-act="mode">Cible : ${MODES[t.mode]}</button>`:'<span></span>'}<button class="act info" data-act="info" aria-label="Fiche du pirate">?</button></div>`;
-    portrait($('selIcon'),p,46,false);
+    portrait($('selIcon'),p,46,false,t.lvl);
   }else if(S.selTile){
     const pk=S.pick?PBY[S.pick]:null;
     pn.innerHTML='<div class="cards">'+S.crew.map(id=>{const p=PBY[id];return `<button class="card ${S.pick===id?'pick':''}" data-act="pick" data-id="${id}" data-need="${p.cost}"><canvas data-icon="${id}"></canvas><span class="cn">${p.name}</span><span class="cc coin">${COIN}${p.cost}</span></button>`}).join('')+'</div>'+
