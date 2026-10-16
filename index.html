@@ -148,7 +148,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #banner.show{animation:ban 2.1s ease-out forwards}
 @keyframes ban{0%{opacity:0;transform:translateY(10px) scale(.9)}12%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
 #deck{display:flex;flex-direction:column;gap:8px}
-#panel{min-height:150px;background:linear-gradient(var(--plank),var(--timber-2));border:1px solid var(--line);border-radius:14px;padding:9px;display:flex;flex-direction:column;justify-content:center;gap:7px}
+#panel{position:absolute;left:6px;right:6px;bottom:6px;z-index:4;background:linear-gradient(var(--plank),var(--timber-2));border:1px solid var(--gold-deep);border-radius:14px;padding:9px;display:flex;flex-direction:column;gap:7px;box-shadow:0 10px 30px rgba(0,0,0,.55)}
+#panel.top{top:6px;bottom:auto}
 .hint{color:var(--muted);font-weight:700;text-align:center;line-height:1.35;text-wrap:balance;margin:0}
 .hint b{color:var(--parch)}
 .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
@@ -173,7 +174,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .tstats{font-size:12.5px;color:var(--muted);font-weight:700;line-height:1.35;margin-top:3px;font-variant-numeric:tabular-nums}
 .tstats b{color:var(--good)}
 .tact{display:grid;grid-template-columns:1.25fr 1fr 1fr auto;gap:6px}
-#waveBtn{border:0;border-radius:14px;padding:12px 10px;background:linear-gradient(#c8432f,#962c1e);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 3px 0 #5d1a11;font-family:var(--display);font-size:24px;line-height:1;letter-spacing:.02em;color:var(--parch)}
+#waveBtn{border:0;border-radius:14px;padding:10px 10px;background:linear-gradient(#c8432f,#962c1e);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 3px 0 #5d1a11;font-family:var(--display);font-size:22px;line-height:1;letter-spacing:.02em;color:var(--parch)}
 #waveBtn small{font-family:var(--body);font-weight:800;font-size:13px;color:var(--gold);margin-left:6px}
 #waveBtn:disabled{background:var(--timber-2);box-shadow:none;color:var(--muted);cursor:default}
 .overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,20,26,.72);border-radius:12px;padding:16px;z-index:5}
@@ -182,7 +183,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .scroll-sheet p{margin:0;font-weight:700;line-height:1.4;text-align:center;text-wrap:balance}
 .scroll-sheet .earn{font-family:var(--display);font-size:28px;color:var(--gold-deep);justify-content:center}
 .scroll-sheet .btns{display:grid;gap:8px}
-@media (max-height:700px){#panel{min-height:136px}.card canvas{width:34px;height:34px}#waveBtn{padding:9px}#homeCv{height:130px}.logo h1{font-size:50px}}
+@media (max-height:700px){.card canvas{width:34px;height:34px}#waveBtn{padding:8px}#homeCv{height:130px}.logo h1{font-size:50px}}
 @media (prefers-reduced-motion:reduce){#banner.show{animation-duration:1.6s}}
 </style>
 
@@ -248,6 +249,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
     <div id="stage">
       <canvas id="game"></canvas>
       <div id="banner"></div>
+      <div id="panel" hidden></div>
       <div class="overlay" id="pauseScreen" hidden>
         <div class="scroll-sheet">
           <h2>Pause</h2>
@@ -273,7 +275,6 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
       </div>
     </div>
     <div id="deck">
-      <div id="panel"></div>
       <button id="waveBtn"></button>
     </div>
   </section>
@@ -1429,7 +1430,7 @@ function startGame(map,crew=SV.crew){
   running=true;renderPanel();updateHud(true);
   $('speedBtn').textContent='×'+S.speed;$('speedBtn').setAttribute('aria-pressed',S.speed>1);
   if(map.daily)banner(map.theme.shout,map.name+' · '+map.mod.name);
-  else banner(map.name,'Recrutez puis lancez la vague 1');
+  else banner(map.name,'Touchez l’herbe pour recruter un pirate');
 }
 function resize(){
   if(view!=='game'||!M)return;
@@ -1444,7 +1445,10 @@ new ResizeObserver(resize).observe($('stage'));
 // =============== Panneau de jeu ===============
 function renderPanel(){
   const pn=$('panel');
-  if(!S){pn.innerHTML='';return}
+  if(!S){pn.innerHTML='';pn.hidden=true;return}
+  pn.hidden=!(S.sel||S.selTile)||S.over;
+  // Tiroir en haut si la case choisie est dans la moitié basse de la carte, pour ne pas la cacher
+  const selRow=S.sel?S.sel.r:S.selTile?S.selTile.r:0;pn.classList.toggle('top',selRow>=ROWS/2);
   if(S.sel){
     const t=S.sel,p=PBY[t.id],st=p.lv[t.lvl],nx=p.lv[t.lvl+1],up=p.ups[t.lvl],refund=Math.floor(t.spent*.7);
     const row=(label,a,b,unit='')=>`${label} ${fmt(a)}${unit}${nx&&b!==undefined&&b!==a?` → <b>${fmt(b)}${unit}</b>`:''}`;
@@ -1472,10 +1476,7 @@ function renderPanel(){
       (pk?`<div class="strip"><p><b>${pk.name}</b> · ${pk.desc}</p><button class="act info" data-act="info" aria-label="Fiche du pirate">?</button><button class="act up" data-act="build" data-cost="${pk.cost}">Recruter · ${pk.cost}</button></div>`
          :`<p class="hint">Touchez un pirate pour voir son rôle et sa portée, puis recrutez-le.</p>`);
     pn.querySelectorAll('canvas[data-icon]').forEach(c=>portrait(c,PBY[c.dataset.icon],40,false));
-  }else{
-    pn.innerHTML=S.over?'<p class="hint">Le trésor est tombé.</p>':
-      `<p class="hint">Touchez une <b>parcelle d’herbe</b> pour recruter un pirate.<br>Touchez un pirate placé pour l’améliorer, le vendre ou lire sa fiche.</p>`;
-  }
+  }else pn.innerHTML='';
   refreshAfford();
 }
 function refreshAfford(){
