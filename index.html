@@ -197,6 +197,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
       <button class="big gold" id="bDaily">Défi du jour</button>
       <button class="big alt" id="bCrew">Taverne des pirates</button>
       <button class="big alt" id="bLeader">Classement mondial</button>
+      <button class="big alt" id="bBot">Regarder Capitaine Claude</button>
     </div>
   </section>
 
@@ -864,11 +865,12 @@ function drawKraken(c,e,t){
 const cv=$('game'),ctx=cv.getContext('2d'),bg=document.createElement('canvas');
 let K=1,S=null,running=false;
 const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
-function newGame(map,crew){
+function newGame(map,crew,opts={}){
   setupMap(map);
   S={crew:crew.slice(),gold:map.gold,lives:map.lives,maxLives:map.lives,wave:0,cleared:0,earned:0,healAcc:0,
      enemies:[],towers:[],proj:[],fx:[],wakes:[],mines:[],waves:[],sel:null,selTile:null,pick:null,
-     speed:SV.speed||1,paused:false,over:false,won:false,endless:!!map.daily,shake:0,towerAt:new Map(),spawnIdx:0};
+     speed:SV.speed||1,paused:false,over:false,won:false,endless:!!map.daily||!!opts.bot,shake:0,towerAt:new Map(),spawnIdx:0,
+     bot:opts.bot?{t:0,oi:0}:null};
 }
 function fx(o){S.fx.push(o);if(S.fx.length>600)S.fx.shift()}
 function puff(x,y,n,col='220,214,200',sz=6){for(let i=0;i<n;i++)fx({k:'puff',x,y,vx:(Math.random()-.5)*30,vy:(Math.random()-.5)*30-8,life:.6+Math.random()*.4,max:1,r:sz*(.6+Math.random()*.6),col})}
@@ -1018,6 +1020,7 @@ function waveCleared(w){
   if(healed)text((chestTile().c+.5)*TS,(chestTile().r-.8)*TS,'+'+healed+' trésor','#97d36f');
   S.cleared=Math.max(S.cleared,w.n);
   // Doublons : plein tarif pendant les 15 vagues de la campagne, moitié moins en mode sans fin
+  if(S.bot)return;
   const dbl=M.daily?(w.n<=MAIN_WAVES?6:2):(w.n<=MAIN_WAVES?4:2)*M.tier;S.earned+=dbl;SV.doublons+=dbl;
   if(M.daily){
     const d=SV.daily&&SV.daily.day===M.daily?SV.daily:{day:M.daily,wave:0,lives:0,tries:0};
@@ -1031,9 +1034,35 @@ function waveCleared(w){
   }
   if(S.won){showEnd(true);pushScores()}
 }
-function gameOver(){S.over=true;S.sel=null;S.selTile=null;S.pick=null;renderPanel();showEnd(false);pushScores()}
+function gameOver(){S.over=true;S.sel=null;S.selTile=null;S.pick=null;renderPanel();showEnd(false);if(!S.bot)pushScores()}
+
+// =============== Capitaine Claude (pilote automatique) ===============
+// Recrute sur les cases qui couvrent le plus de chenal, monte tout au niveau 3, fusionne dès que possible
+const BOT_CREW=['canonnier','mousquetaire','harponneur','bombardier','mousse'];
+const BOT_ORDER=['canonnier','canonnier','bombardier','mousquetaire','harponneur','canonnier','bombardier','canonnier'];
+function upgrade(t){const cost=PBY[t.id].ups[t.lvl];if(cost===undefined||S.gold<cost)return false;
+  S.gold-=cost;t.spent+=cost;t.lvl++;t.spots=null;t._bs=null;fx({k:'ring',x:t.x,y:t.y,life:.5,max:.5,r:10,R:36,col:'244,187,76'});sfx('build');return true}
+function botTile(id){
+  const B=S.bot,R=PBY[id].lv[0].range*TS;let best=null,bs=0;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(grid[r][c]!==0||S.towerAt.has(c+','+r))continue;
+    const x=(c+.5)*TS,y=(r+.5)*TS;let sc=0;for(const q of B.samples)if(Math.hypot(q.x-x,q.y-y)<=R)sc++;
+    if(sc>bs){bs=sc;best={c,r}}}
+  return best;
+}
+function botTick(){
+  const B=S.bot;
+  if(!B.samples){B.samples=[];for(const P of PATHS)for(let d=0;d<P.len;d+=TS*.25){const q=posAt(P,d);if(q.y>0)B.samples.push(q)}}
+  for(const t of S.towers){const mi=mergeInfo(t);if(mi&&mi.ok){doMerge(t);return}}
+  const id=BOT_ORDER[B.oi%BOT_ORDER.length],p=PBY[id];
+  const low=S.towers.filter(t=>t.lvl<2).sort((a,b)=>a.lvl-b.lvl)[0];
+  if((!low||S.towers.length<6+S.wave)&&S.gold>=p.cost){const tile=botTile(id);if(tile){S.selTile=tile;build(id);S.sel=null;B.oi++;return}}
+  if(low&&upgrade(low))return;
+  if(!waveSpawning()&&S.enemies.length===0)launchWave();
+}
 
 function update(dt){
+  if(S.bot){S.bot.t-=dt;if(S.bot.t<=0){S.bot.t=.3;botTick();if(S.over)return}}
   computeAuras();
   for(const w of S.waves){w.time+=dt;while(w.queue.length&&w.queue[0].t<=w.time)spawn(w.queue.shift().type,w)}
   for(const e of S.enemies)e.fearF=1;
@@ -1336,10 +1365,10 @@ $('sheet').addEventListener('click',ev=>{
 });
 
 // =============== Navigation ===============
-let view='home',crewMode='tavern',chosenMap=null;
+let view='home',crewMode='tavern',chosenMap=null,botPick=false;
 function show(v){
   view=v;for(const [k,id] of [['home','vHome'],['maps','vMaps'],['crew','vCrew'],['game','vGame'],['leader','vLeader'],['daily','vDaily']])$(id).hidden=k!==v;
-  if(v==='leader')renderLeader();if(v==='daily')renderDaily();
+  if(v==='leader')renderLeader();if(v==='daily')renderDaily();if(v==='home')botPick=false;
   if(v==='home')renderHome();if(v==='maps')renderMaps();if(v==='crew')renderCrew();if(v==='game')resize();
 }
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
@@ -1460,6 +1489,7 @@ function renderDaily(){
   $('dyRec').textContent=(d&&d.wave?`Votre meilleur essai : ${d.wave} vague${d.wave>1?'s':''} avec ${d.lives} trésor${d.lives>1?'s':''}${pos>=0?`, ${pos+1}ᵉ sur ${rows.length}`:''}. `:'Pas encore joué aujourd’hui. ')+`Essais illimités, seul le meilleur compte. Nouveau défi dans ${untilTomorrow()}.`;
 }
 $('bDaily').onclick=()=>{initAudio();show('daily')};
+$('bBot').onclick=()=>{initAudio();botPick=true;show('maps')};
 $('bDailyGo').onclick=()=>{initAudio();if(!SV.pseudo&&LB.uid&&LB.writeOk&&!pseudoAsked){askPseudo();return}const info=dailyInfo();startGame(info.map,info.crew)};
 $('crewBack').onclick=()=>show(crewMode==='select'?'maps':'home');
 
@@ -1469,14 +1499,14 @@ function renderHome(){
 }
 function renderMaps(){
   $('mapList').innerHTML=MAPS.map((m,i)=>{
-    const rec=mapRec(m.id),ok=mapUnlocked(i);
+    const rec=mapRec(m.id),ok=botPick||mapUnlocked(i);
     return `<button class="mapCard ${ok?'':'locked'}" data-map="${i}"><canvas data-prev="${i}"></canvas><div>
       <h3>${m.name}</h3><p>${m.desc}</p>
       <div class="chips"><span class="chip d${m.tier}">${m.diff}</span><span class="chip">${m.paths.length>1?m.paths.length+' chenaux':'1 chenal'}</span><span class="chip">${m.lives} trésors</span><span class="chip">${m.gold} or</span></div>
       ${ok?`<p class="lockNote">${rec.won?'Conquise · ':''}Record : ${rec.best?rec.best+' vague'+(rec.best>1?'s':''):'aucun'} · ${4*m.tier} doublons par vague</p>`:`<p class="lockNote">Atteignez la vague 10 sur ${MAPS[i-1].name} pour débloquer cette île.</p>`}
     </div></button>`}).join('');
   $('mapList').querySelectorAll('canvas[data-prev]').forEach(c=>{const m=MAPS[+c.dataset.prev],d=Math.min(window.devicePixelRatio||1,2),k=96*d/W;c.width=Math.round(W*k);c.height=Math.round(H*k);buildBg(c,m,k)});
-  $('mapList').querySelectorAll('[data-map]').forEach(b=>b.onclick=()=>{const i=+b.dataset.map;if(!mapUnlocked(i))return;chosenMap=MAPS[i];crewMode='select';show('crew')});
+  $('mapList').querySelectorAll('[data-map]').forEach(b=>b.onclick=()=>{const i=+b.dataset.map;if(botPick){botPick=false;startGame(MAPS[i],BOT_CREW,{bot:true});return}if(!mapUnlocked(i))return;chosenMap=MAPS[i];crewMode='select';show('crew')});
 }
 function renderCrew(){
   const sel=crewMode==='select';
@@ -1506,14 +1536,15 @@ function renderCrew(){
 }
 $('bSail').onclick=()=>{if(!SV.crew.length)return;initAudio();startGame(chosenMap)};
 
-function startGame(map,crew=SV.crew){
-  newGame(map,crew);
+function startGame(map,crew=SV.crew,opts={}){
+  newGame(map,crew,opts);
   if(map.daily){const d=SV.daily&&SV.daily.day===map.daily?SV.daily:{day:map.daily,wave:0,lives:0,tries:0};d.tries=(d.tries||0)+1;SV.daily=d;save()}
   $('endScreen').hidden=true;$('pauseScreen').hidden=true;
   show('game');
   running=true;renderPanel();updateHud(true);
   $('speedBtn').textContent='×'+S.speed;$('speedBtn').setAttribute('aria-pressed',S.speed>1);
-  if(map.daily)banner(map.theme.shout,map.name+' · '+map.mod.name);
+  if(S.bot)banner('Capitaine Claude aux commandes',map.name+' · regardez-le jouer');
+  else if(map.daily)banner(map.theme.shout,map.name+' · '+map.mod.name);
   else banner(map.name,'Touchez l’herbe pour recruter un pirate');
 }
 function resize(){
@@ -1578,7 +1609,8 @@ function updateHud(force){
   $('gold').textContent=S.gold;$('lives').textContent=S.lives;$('wave').textContent=S.wave;
   $('waveOf').textContent=S.wave>MAIN_WAVES||M.daily?'':'/'+MAIN_WAVES;
   const b=$('waveBtn');
-  if(S.over){b.disabled=true;b.textContent='Partie terminée'}
+  if(S.bot){b.disabled=true;b.textContent=S.over?'Partie terminée':`Capitaine Claude aux commandes · vague ${S.wave}`}
+  else if(S.over){b.disabled=true;b.textContent='Partie terminée'}
   else if(sp){b.disabled=true;b.textContent=`Vague ${S.wave} en approche`}
   else{b.disabled=!running;const n=S.wave+1,early=running&&S.enemies.length>0;b.innerHTML=`Lancer la vague ${n}${early?`<small>+${earlyBonus(n)} en avance</small>`:''}`}
   refreshAfford();
@@ -1586,6 +1618,8 @@ function updateHud(force){
 function banner(title,sub){const el=$('banner');el.innerHTML=title+(sub?`<small>${sub}</small>`:'');el.classList.remove('show');void el.offsetWidth;el.classList.add('show')}
 function showEnd(win){
   $('endScreen').hidden=false;$('bContinue').hidden=!win;
+  $('endEarn').hidden=!!S.bot;
+  if(S.bot){$('endTitle').textContent='Capitaine Claude est tombé';$('endText').textContent=`Il a repoussé ${S.cleared} vague${S.cleared>1?'s':''} sur ${M.name} avec les 5 pirates de départ. À vous de faire mieux !`;return}
   $('endTitle').textContent=win?'Victoire !':M.daily?'Fin du défi':'Le trésor est perdu';
   $('endText').textContent=win?`${M.name} est à vous : la flotte royale a sombré après ${MAIN_WAVES} vagues. Continuez en mode sans fin pour gagner encore des doublons.`
     :`La Marine a vidé le coffre à la vague ${S.wave}. Vous avez repoussé ${S.cleared} vague${S.cleared>1?'s':''}.`;
@@ -1593,7 +1627,7 @@ function showEnd(win){
 }
 
 cv.addEventListener('pointerdown',ev=>{
-  if(!running||!S||S.over||S.won)return;initAudio();
+  if(!running||!S||S.over||S.won||S.bot)return;initAudio();
   const r=cv.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width*W,y=(ev.clientY-r.top)/r.height*H;
   const c=Math.floor(x/TS),row=Math.floor(y/TS);if(c<0||c>=COLS||row<0||row>=ROWS)return;
   const tw=S.towerAt.get(c+','+row);
@@ -1628,9 +1662,9 @@ $('speedBtn').onclick=()=>{if(!S)return;S.speed=S.speed%3+1;SV.speed=S.speed;sav
 function openPause(){if(!S||S.over||S.won)return;S.paused=true;$('pauseText').textContent=`${M.name} · vague ${S.wave} · ${S.earned} doublons gagnés pour l’instant.`;$('pauseScreen').hidden=false}
 $('pauseBtn').onclick=openPause;
 $('bResume').onclick=()=>{$('pauseScreen').hidden=true;S.paused=false};
-$('bRestart').onclick=()=>startGame(M,S.crew);
+$('bRestart').onclick=()=>startGame(M,S.crew,{bot:!!S.bot});
 $('bQuit').onclick=()=>{$('pauseScreen').hidden=true;running=false;pushScores();show('home')};
-$('bAgain').onclick=()=>startGame(M,S.crew);
+$('bAgain').onclick=()=>startGame(M,S.crew,{bot:!!S.bot});
 $('bPort').onclick=()=>{$('endScreen').hidden=true;running=false;show('home')};
 $('bContinue').onclick=()=>{S.endless=true;S.won=false;$('endScreen').hidden=true;updateHud(true);banner('Mode sans fin','')};
 function syncSound(){$('soundBtn').setAttribute('aria-pressed',!SV.muted);$('soundWaves').style.opacity=SV.muted?.15:1}
