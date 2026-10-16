@@ -1258,8 +1258,15 @@ function pushScores(){
     LB.db=db;LB.uid=user?await user.id():null;
     db.collection('scores').onSnapshot(snap=>{
       LB.docs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));LB.state='on';
+      if(!snap.metadata.fromCache&&!LB.synced){
+        LB.synced=true;
+        // Même compte sur un autre appareil : on reprend le pseudo déjà enregistré
+        const mine=LB.docs.find(d=>d.id===LB.uid);
+        if(!SV.pseudo&&mine&&mine.pseudo){SV.pseudo=cleanPseudo(mine.pseudo);save()}
+        pushScores();
+        if(!SV.pseudo&&LB.uid&&LB.writeOk)askPseudo();
+      }
       if(view==='leader')renderLeader();if(view==='daily')renderDaily();
-      if(!snap.metadata.fromCache&&!LB.synced){LB.synced=true;pushScores()}
     },()=>{LB.state='off';if(view==='leader')renderLeader()});
   }catch(e){LB.state='off';if(view==='leader')renderLeader()}
 })();
@@ -1305,6 +1312,23 @@ function renderLeader(){
 $('lbSave').onclick=()=>{const v=cleanPseudo($('lbPseudo').value);if(!v)return;SV.pseudo=v;save();pushScores();renderLeader();$('lbSave').textContent='Enregistré';setTimeout(()=>$('lbSave').textContent='Enregistrer',1500)};
 $('lbPseudo').addEventListener('keydown',e=>{if(e.key==='Enter')$('lbSave').click()});
 
+let pseudoAsked=false;
+function askPseudo(){
+  if(pseudoAsked||SV.pseudo||view==='game'||!$('sheet').hidden)return;pseudoAsked=true;
+  $('paper').innerHTML=`<h3 style="font-family:var(--display);font-weight:400;font-size:34px;line-height:1;margin:0;color:var(--red)">Votre nom de pirate</h3>
+    <p class="desc">Il s’affiche dans le classement mondial et le défi du jour. Sans nom, vos records restent sur cet appareil.</p>
+    <input id="pseudoIn" maxlength="16" autocomplete="off" placeholder="Capitaine…" style="font:inherit;font-weight:800;font-size:18px;color:var(--ink);background:#fff8e6;border:2px solid #b98b52;border-radius:10px;padding:10px 12px">
+    <div class="pbtns"><button class="big" data-p="ok">C’est parti</button><button class="big alt" data-p="later">Plus tard</button></div>`;
+  $('sheet').hidden=false;$('sheet').dataset.where='pseudo';$('sheet').dataset.id='';
+  const inp=$('pseudoIn');setTimeout(()=>inp.focus(),50);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')$('paper').querySelector('[data-p=ok]').click()});
+}
+$('paper').addEventListener('click',ev=>{
+  const b=ev.target.closest('button[data-p]');if(!b)return;ev.stopPropagation();
+  if(b.dataset.p==='ok'){const v=cleanPseudo($('pseudoIn').value);if(!v){$('pseudoIn').focus();return}SV.pseudo=v;save();pushScores()}
+  $('sheet').hidden=true;if(view==='leader')renderLeader();if(view==='daily')renderDaily();
+});
+
 // =============== Défi du jour ===============
 function untilTomorrow(){const n=new Date(),t=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate()+1),m=Math.max(0,Math.round((t-n)/60000));return `${Math.floor(m/60)} h ${String(m%60).padStart(2,'0')}`}
 function renderDaily(){
@@ -1320,7 +1344,7 @@ function renderDaily(){
   $('dyRec').textContent=(d&&d.wave?`Votre meilleur essai : ${d.wave} vague${d.wave>1?'s':''} avec ${d.lives} trésor${d.lives>1?'s':''}${pos>=0?`, ${pos+1}ᵉ sur ${rows.length}`:''}. `:'Pas encore joué aujourd’hui. ')+`Essais illimités, seul le meilleur compte. Nouveau défi dans ${untilTomorrow()}.`;
 }
 $('bDaily').onclick=()=>{initAudio();show('daily')};
-$('bDailyGo').onclick=()=>{initAudio();const info=dailyInfo();startGame(info.map,info.crew)};
+$('bDailyGo').onclick=()=>{initAudio();if(!SV.pseudo&&LB.uid&&LB.writeOk&&!pseudoAsked){askPseudo();return}const info=dailyInfo();startGame(info.map,info.crew)};
 $('crewBack').onclick=()=>show(crewMode==='select'?'maps':'home');
 
 function renderHome(){
