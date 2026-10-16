@@ -521,7 +521,7 @@ const ED={
   fregate:{name:'Frégate',hp:210,spd:.85,armor:6,gold:14,lives:2,size:21,hull:'#5d3b22',deck:'#9c734a',masts:[[.38,.6],[-.22,.68]],navy:1},
   galion:{name:'Galion',hp:560,spd:.6,armor:11,gold:30,lives:4,size:26,hull:'#4a2f1c',deck:'#8a6440',masts:[[.45,.55],[0,.68],[-.45,.58]],navy:1,trim:1,big:1},
   fantome:{name:'Vaisseau fantôme',hp:150,spd:1.05,armor:0,gold:15,lives:2,size:19,hull:'#3d5c57',deck:'#56807a',masts:[[.3,.62],[-.3,.62]],ghost:1,regen:.04},
-  kraken:{name:'Kraken',hp:2600,spd:.42,armor:7,gold:150,lives:10,size:30,kraken:1,big:1},
+  kraken:{name:'Kraken',hp:2600,spd:.42,armor:7,gold:150,lives:6,size:30,kraken:1,big:1},
 };
 const WAVES=[
   [['chaloupe',8,1]],[['chaloupe',12,.8]],[['chaloupe',6,.8],['sloop',4,1.4]],[['sloop',10,1.1]],
@@ -530,7 +530,7 @@ const WAVES=[
   [['sloop',10,.7],['fantome',6,1.2],['galion',2,3]],[['chaloupe',10,.5],['kraken',1,1]],
   [['fregate',8,1.2],['galion',3,2.5]],[['fantome',12,.9],['fregate',6,1.2]],
   [['sloop',12,.5],['galion',5,2.2]],[['chaloupe',20,.3],['fregate',8,1],['galion',4,2]],
-  [['fantome',10,.8],['galion',6,1.8],['kraken',2,6]],
+  [['fantome',10,.8],['galion',6,1.8],['kraken',2,12]],
 ];
 function waveDef(n){
   let g;
