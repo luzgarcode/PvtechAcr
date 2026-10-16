@@ -165,7 +165,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 
 <div id="app">
   <section class="view" id="vHome">
-    <div class="logo"><h1>Pirate Bastion</h1><p>La Marine royale veut votre trésor. Recrutez votre équipage et tenez le chenal.</p></div>
+    <div class="logo"><h1 id="logoTitle">Pirate Bastion</h1><p id="logoText">La Marine royale veut votre trésor. Recrutez votre équipage et tenez le chenal.</p></div>
     <canvas id="homeCv"></canvas>
     <div class="homeStats" id="homeStats"></div>
     <div class="homeBtns">
@@ -1329,6 +1329,16 @@ function frame(now){
   }else if(view==='home')drawHome(now);
   requestAnimationFrame(frame);
 }
+// Code de triche : toucher 5 fois le titre de l'accueil débloque tout (pour tester)
+let cheatTaps=0,cheatTimer=0;
+$('logoTitle').addEventListener('click',()=>{
+  cheatTaps++;clearTimeout(cheatTimer);cheatTimer=setTimeout(()=>cheatTaps=0,2000);
+  if(cheatTaps<5)return;cheatTaps=0;
+  SV.unlocked=PIR.map(p=>p.id);SV.doublons=Math.max(SV.doublons,99999);
+  MAPS.forEach(m=>{const r=mapRec(m.id);r.best=Math.max(r.best,10);SV.maps[m.id]=r});
+  save();renderHome();initAudio();sfx('win');
+  $('logoText').textContent='Mode triche : les 30 pirates et les 4 îles sont débloqués.';
+});
 if(location.hash==='#test')window.__pb={get S(){return S}};
 show('home');
 if(document.fonts)document.fonts.ready.then(()=>{if(view==='game')renderPanel()});
