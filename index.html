@@ -562,7 +562,7 @@ function waveDef(n){
 }
 function hpMul(n){
   const b=m=>1+.12*(m-1)+.006*(m-1)*(m-1);
-  return M.hp*(n<=MAIN_WAVES?b(n):b(MAIN_WAVES)*Math.pow(1.10,n-MAIN_WAVES));
+  return M.hp*(n<=MAIN_WAVES?b(n):b(MAIN_WAVES)*Math.pow(1.12,n-MAIN_WAVES));
 }
 
 // =============== Sauvegarde ===============
@@ -784,7 +784,11 @@ function drawPirate(c,x,y,p,lvl,ang,s,t,opt={}){
     c.save();c.translate(-7,-7+bob);c.scale(.8*sc,.8*sc);drawFigure(c,L,ang,t,true);c.restore();
     c.save();c.translate(2,5);drawHeavy(c,L.weap,ang,lvl);c.restore();
   }else{c.save();c.translate(0,-2+bob);c.scale(sc*.92,sc*.92);drawFigure(c,L,ang,t,false);c.restore()}
-  if(!opt.portrait)for(let i=0;i<=lvl;i++){c.fillStyle='#f4bb4c';c.strokeStyle='#5a3a10';c.lineWidth=1;circ(c,-6+i*6,18.5,2.3);c.fill();c.stroke()}
+  if(!opt.portrait&&opt.star){
+    c.strokeStyle='rgba(244,187,76,.9)';c.lineWidth=1.6;circ(c,0,0,21.5);c.stroke();
+    c.font='bold 10px sans-serif';c.textAlign='center';c.lineWidth=2.5;c.strokeStyle='#3a2410';c.fillStyle='#ffd23f';
+    const st='★'.repeat(opt.star);c.strokeText(st,0,22);c.fillText(st,0,22);
+  }else if(!opt.portrait)for(let i=0;i<=lvl;i++){c.fillStyle='#f4bb4c';c.strokeStyle='#5a3a10';c.lineWidth=1;circ(c,-6+i*6,18.5,2.3);c.fill();c.stroke()}
   c.restore();
 }
 function portrait(cv,p,size,locked,lvl=0){
@@ -881,7 +885,35 @@ function wreck(e){
   splash(e.x,e.y,10);puff(e.x,e.y,5,'70,70,70',s*.4);
 }
 
-function base(t){return PBY[t.id].lv[t.lvl]}
+// Fusion : 2 pirates niveau 3 → ★, 3 ★ → ★★, 5 ★★ → ★★★ (2 au maximum par partie)
+const STAR_DMG=[1,2.5,8,40],STAR_RNG=[1,1.1,1.2,1.3],MAX_3STAR=2;
+const MERGE=[{need:2,gold:1000},{need:3,gold:2000},{need:5,gold:5000}];
+function starStats(b,k){
+  if(!k)return b;
+  const o=Object.assign({},b,{dmg:b.dmg*STAR_DMG[k],range:b.range*STAR_RNG[k]});
+  if(o.splash)o.splash*=1+.1*k;
+  if(o.burn)o.burn*=STAR_DMG[k];
+  if(o.n&&k>=3)o.n+=1;
+  if(o.mines)o.mines+=k;
+  if(o.gold)o.gold*=1+k;if(o.goldKill)o.goldKill*=1+k;if(o.heal)o.heal*=1+k;
+  if(o.aura){o.aura=Object.assign({},o.aura);for(const a in o.aura)o.aura[a]*=1+.4*k}
+  return o;
+}
+function base(t){const b=PBY[t.id].lv[t.lvl];if(!t.star)return b;if(!t._bs||t._bk!==t.star){t._bs=starStats(b,t.star);t._bk=t.star}return t._bs}
+function mergeInfo(t){
+  if(t.lvl<2||(t.star||0)>=3)return null;
+  const k=t.star||0,r=MERGE[k],mates=S.towers.filter(o=>o!==t&&o.id===t.id&&o.lvl===2&&(o.star||0)===k);
+  const capped=k===2&&S.towers.filter(o=>o.star===3).length>=MAX_3STAR;
+  return{next:k+1,need:r.need,have:mates.length+1,gold:r.gold,mates,capped,ok:mates.length+1>=r.need&&!capped&&S.gold>=r.gold};
+}
+function doMerge(t){
+  const m=mergeInfo(t);if(!m||!m.ok)return;
+  const used=m.mates.sort((a,b)=>Math.hypot(a.x-t.x,a.y-t.y)-Math.hypot(b.x-t.x,b.y-t.y)).slice(0,m.need-1);
+  S.gold-=m.gold;t.spent+=m.gold;
+  for(const o of used){t.spent+=o.spent;S.towers.splice(S.towers.indexOf(o),1);S.towerAt.delete(o.c+','+o.r);puff(o.x,o.y,6,'244,187,76',8);fx({k:'tracer',x:o.x,y:o.y,x2:t.x,y2:t.y,life:.4,max:.4,col:'244,187,76'})}
+  t.star=m.next;t._bs=null;t.spots=null;
+  fx({k:'ring',x:t.x,y:t.y,life:.7,max:.7,r:10,R:60,col:'244,187,76'});text(t.x,t.y-24,'★'.repeat(t.star),'#f4bb4c');sfx('win');
+}
 function eff(t){
   const p=PBY[t.id],b=base(t),bf=t.buf||{dmg:1,rate:1,range:1};
   return Object.assign({},b,{dmg:b.dmg*bf.dmg,rate:b.rate/bf.rate,range:b.range*bf.range,pierce:b.pierce!==undefined?b.pierce:(p.pierce||0)});
@@ -1133,7 +1165,7 @@ function draw(now){
     if(m.arm<=0&&Math.sin(t*10)>0){ctx.fillStyle='#ff5a3a';circ(ctx,x,y-7,1.6);ctx.fill()}
   }
   for(const e of S.enemies)drawShip(ctx,e,t);
-  for(const tw of S.towers){drawPirate(ctx,tw.x,tw.y,PBY[tw.id],tw.lvl,tw.ang,TS,t);
+  for(const tw of S.towers){drawPirate(ctx,tw.x,tw.y,PBY[tw.id],tw.lvl,tw.ang,TS,t,{star:tw.star});
     if(tw===S.sel){ctx.strokeStyle='#f4bb4c';ctx.lineWidth=2.5;circ(ctx,tw.x,tw.y,TS*.46);ctx.stroke()}
     if(tw.buf&&(tw.buf.dmg>1||tw.buf.rate>1||tw.buf.range>1)){const bx=tw.x+TS*.34,by=tw.y-TS*.34;ctx.fillStyle='#97d36f';ctx.strokeStyle='#20140c';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx,by-4.5);ctx.lineTo(bx+4.5,by+1.5);ctx.lineTo(bx-4.5,by+1.5);ctx.closePath();ctx.fill();ctx.stroke()}}
   for(const e of S.enemies){
@@ -1462,7 +1494,7 @@ function renderPanel(){
   // Tiroir en haut si la case choisie est dans la moitié basse de la carte, pour ne pas la cacher
   const selRow=S.sel?S.sel.r:S.selTile?S.selTile.r:0;pn.classList.toggle('top',selRow>=ROWS/2);
   if(S.sel){
-    const t=S.sel,p=PBY[t.id],st=p.lv[t.lvl],nx=p.lv[t.lvl+1],up=p.ups[t.lvl],refund=Math.floor(t.spent*.7);
+    const t=S.sel,p=PBY[t.id],st=base(t),nx=t.star?null:p.lv[t.lvl+1],up=p.ups[t.lvl],refund=Math.floor(t.spent*.7),mi=mergeInfo(t);
     const row=(label,a,b,unit='')=>`${label} ${fmt(a)}${unit}${nx&&b!==undefined&&b!==a?` → <b>${fmt(b)}${unit}</b>`:''}`;
     const parts=[];
     if(p.kind!=='none'){parts.push(row('Dégâts',st.dmg,nx&&nx.dmg));parts.push(row('Recharge',st.rate,nx&&nx.rate,' s'))}
@@ -1478,8 +1510,8 @@ function renderPanel(){
     if(nx&&nx.pierce&&!st.pierce)parts.push(`<b>Ignore ${pct(nx.pierce)} du blindage</b>`);
     const boosted=t.buf&&(t.buf.dmg>1||t.buf.rate>1||t.buf.range>1)?' · <b>boosté par une aura</b>':'';
     const canMode=p.kind!=='none'&&p.kind!=='mine';
-    pn.innerHTML=`<div class="tp"><canvas id="selIcon"></canvas><div class="tinfo"><div class="tname">${t.lvl===2&&p.lv3name?p.lv3name:p.name}<span>Niveau ${t.lvl+1}</span></div><div class="tstats">${parts.join(' · ')}${boosted}</div></div></div>
-      <div class="tact">${nx?`<button class="act up" data-act="up" data-cost="${up}">Améliorer · ${up}</button>`:`<button class="act up" disabled>Niveau max</button>`}
+    pn.innerHTML=`<div class="tp"><canvas id="selIcon"></canvas><div class="tinfo"><div class="tname">${t.lvl===2&&p.lv3name?p.lv3name:p.name}<span>${t.star?'★'.repeat(t.star):'Niveau '+(t.lvl+1)}</span></div><div class="tstats">${parts.join(' · ')}${boosted}</div></div></div>
+      <div class="tact">${nx?`<button class="act up" data-act="up" data-cost="${up}">Améliorer · ${up}</button>`:mi?`<button class="act up" data-act="merge" ${mi.have>=mi.need&&!mi.capped?`data-cost="${mi.gold}"`:''} ${mi.ok?'':'disabled'}>${mi.capped?'Max 2 ★★★':`Fusion ${'★'.repeat(mi.next)} · ${mi.gold} (${Math.min(mi.have,mi.need)}/${mi.need})`}</button>`:`<button class="act up" disabled>${t.star===3?'★★★ max':'Niveau max'}</button>`}
       <button class="act" data-act="sell">Vendre +${refund}</button>${canMode?`<button class="act" data-act="mode">Cible : ${MODES[t.mode]}</button>`:'<span></span>'}<button class="act info" data-act="info" aria-label="Fiche du pirate">?</button></div>`;
     portrait($('selIcon'),p,46,false,t.lvl);
   }else if(S.selTile){
@@ -1541,6 +1573,7 @@ $('panel').addEventListener('click',ev=>{
   if(a==='pick'){const id=b.dataset.id;if(S.pick===id&&S.gold>=PBY[id].cost)build(id);else S.pick=id}
   else if(a==='build'&&S.pick)build(S.pick);
   else if(a==='info'){const id=S.sel?S.sel.id:S.pick;if(id){if(!S.paused){S.paused=true;sheetPaused=true}openSheet(id,'game')}return}
+  else if(a==='merge'&&S.sel)doMerge(S.sel);
   else if(a==='up'&&S.sel){const t=S.sel,cost=PBY[t.id].ups[t.lvl];if(cost===undefined||S.gold<cost)return;
     S.gold-=cost;t.spent+=cost;t.lvl++;t.spots=null;fx({k:'ring',x:t.x,y:t.y,life:.5,max:.5,r:10,R:36,col:'244,187,76'});sfx('build');sfx('coin')}
   else if(a==='sell'&&S.sel){const t=S.sel,g=Math.floor(t.spent*.7);S.gold+=g;text(t.x,t.y,'+'+g,'#f4bb4c');puff(t.x,t.y,6,'210,190,150',8);sfx('coin');
