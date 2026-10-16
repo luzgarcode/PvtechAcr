@@ -1056,8 +1056,10 @@ function botTick(){
   for(const t of S.towers){const mi=mergeInfo(t);if(mi&&mi.ok){doMerge(t);return}}
   const id=BOT_ORDER[B.oi%BOT_ORDER.length],p=PBY[id];
   const low=S.towers.filter(t=>t.lvl<2).sort((a,b)=>a.lvl-b.lvl)[0];
-  if((!low||S.towers.length<6+S.wave)&&S.gold>=p.cost){const tile=botTile(id);if(tile){S.selTile=tile;build(id);S.sel=null;B.oi++;return}}
-  if(low&&upgrade(low))return;
+  const wantBuild=!low||S.towers.length<6+S.wave,tile=wantBuild?botTile(id):null;
+  if(tile&&S.gold>=p.cost){S.selTile=tile;build(id);S.sel=null;B.oi++;return}
+  // Moins de 4 pirates : on économise pour recruter plutôt que d'améliorer
+  if(low&&!(tile&&S.towers.length<4)&&upgrade(low))return;
   if(!waveSpawning()&&S.enemies.length===0)launchWave();
 }
 
