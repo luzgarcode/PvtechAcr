@@ -962,7 +962,8 @@ function waveCleared(w){
   let healed=0;while(S.healAcc>=1){S.healAcc-=1;if(S.lives<S.maxLives){S.lives++;healed++}}
   if(healed)text((chestTile().c+.5)*TS,(chestTile().r-.8)*TS,'+'+healed+' trésor','#97d36f');
   S.cleared=Math.max(S.cleared,w.n);
-  const dbl=8*M.tier;S.earned+=dbl;SV.doublons+=dbl;
+  // Doublons : plein tarif pendant les 15 vagues de la campagne, moitié moins en mode sans fin
+  const dbl=M.daily?(w.n<=MAIN_WAVES?6:2):(w.n<=MAIN_WAVES?4:2)*M.tier;S.earned+=dbl;SV.doublons+=dbl;
   if(M.daily){
     const d=SV.daily&&SV.daily.day===M.daily?SV.daily:{day:M.daily,wave:0,lives:0,tries:0};
     if(w.n>d.wave||(w.n===d.wave&&S.lives>d.lives)){d.wave=w.n;d.lives=S.lives}
@@ -970,7 +971,7 @@ function waveCleared(w){
   }else{
     const rec=mapRec(M.id);
     if(w.n>rec.best||(w.n===rec.best&&S.lives>(rec.bestLives||0))){rec.best=w.n;rec.bestLives=S.lives}
-    if(w.n===MAIN_WAVES&&!S.endless&&S.lives>0){rec.won=true;const vb=150*M.tier;S.earned+=vb;SV.doublons+=vb;S.won=true;sfx('win')}
+    if(w.n===MAIN_WAVES&&!S.endless&&S.lives>0){rec.won=true;const vb=80*M.tier;S.earned+=vb;SV.doublons+=vb;S.won=true;sfx('win')}
     SV.maps[M.id]=rec;save();
   }
   if(S.won){showEnd(true);pushScores()}
@@ -1400,7 +1401,7 @@ function renderMaps(){
     return `<button class="mapCard ${ok?'':'locked'}" data-map="${i}"><canvas data-prev="${i}"></canvas><div>
       <h3>${m.name}</h3><p>${m.desc}</p>
       <div class="chips"><span class="chip d${m.tier}">${m.diff}</span><span class="chip">${m.paths.length>1?m.paths.length+' chenaux':'1 chenal'}</span><span class="chip">${m.lives} trésors</span><span class="chip">${m.gold} or</span></div>
-      ${ok?`<p class="lockNote">${rec.won?'Conquise · ':''}Record : ${rec.best?rec.best+' vague'+(rec.best>1?'s':''):'aucun'} · ${8*m.tier} doublons par vague</p>`:`<p class="lockNote">Atteignez la vague 10 sur ${MAPS[i-1].name} pour débloquer cette île.</p>`}
+      ${ok?`<p class="lockNote">${rec.won?'Conquise · ':''}Record : ${rec.best?rec.best+' vague'+(rec.best>1?'s':''):'aucun'} · ${4*m.tier} doublons par vague</p>`:`<p class="lockNote">Atteignez la vague 10 sur ${MAPS[i-1].name} pour débloquer cette île.</p>`}
     </div></button>`}).join('');
   $('mapList').querySelectorAll('canvas[data-prev]').forEach(c=>{const m=MAPS[+c.dataset.prev],d=Math.min(window.devicePixelRatio||1,2),k=96*d/W;c.width=Math.round(W*k);c.height=Math.round(H*k);buildBg(c,m,k)});
   $('mapList').querySelectorAll('[data-map]').forEach(b=>b.onclick=()=>{const i=+b.dataset.map;if(!mapUnlocked(i))return;chosenMap=MAPS[i];crewMode='select';show('crew')});
