@@ -352,7 +352,7 @@ function dailyWave(n,map=M){
   const nG=n<5?1:n<10?2:3,types=[];
   for(let i=0;i<nG;i++){const k=pick();if(!types.includes(k))types.push(k)}
   const g=types.map(k=>[k,Math.min(40,Math.max(1,Math.floor(budget/types.length/UNIT[k].cost))),UNIT[k].gap]);
-  if(n%10===0)g.push(['kraken',n/10,14]);
+  if(n%10===0)g.push(['kraken',Math.min(2,n/10),14]);
   return g;
 }
 const MODS=[
@@ -542,6 +542,7 @@ const ED={
   galion:{name:'Galion',hp:560,spd:.6,armor:11,gold:30,lives:4,size:26,hull:'#4a2f1c',deck:'#8a6440',masts:[[.45,.55],[0,.68],[-.45,.58]],navy:1,trim:1,big:1},
   fantome:{name:'Vaisseau fantôme',hp:150,spd:1.05,armor:0,gold:15,lives:2,size:19,hull:'#3d5c57',deck:'#56807a',masts:[[.3,.62],[-.3,.62]],ghost:1,regen:.04},
   kraken:{name:'Kraken',hp:2600,spd:.42,armor:7,gold:150,lives:10,size:30,kraken:1,big:1},
+  krakenet:{name:'Petit kraken',hp:240,spd:.95,armor:2,gold:10,lives:2,size:14,kraken:1,mini:1},
 };
 const WAVES=[
   [['chaloupe',8,1]],[['chaloupe',12,.8]],[['chaloupe',6,.8],['sloop',4,1.4]],[['sloop',10,1.1]],
@@ -894,7 +895,17 @@ function effArmor(e){return Math.max(0,e.armor-(e.brkT>0?e.brk:0))}
 function damage(e,amt,pierce=0){
   if(e.dead)return;
   const arm=effArmor(e)*(1-pierce);e.hp-=Math.max(amt*.25,amt-arm);e.flash=.07;
-  if(e.hp<=0)kill(e);
+  if(e.hp<=0)kill(e);else krakenDrops(e);
+}
+// Défi du jour : le Kraken lâche 2 petits krakens à 75 %, 50 % et 25 % de sa vie, puis 3 en coulant
+function dropMinis(e,n){
+  for(let i=0;i<n;i++)spawn('krakenet',e.wave,{path:e.path,d:Math.max(0,e.d-10-i*16)});
+  splash(e.x,e.y,10);text(e.x,e.y-e.def.size-10,'Petits krakens !','#e8b8ef');
+}
+function krakenDrops(e){
+  if(!M.daily||!e.def.kraken||e.def.mini)return;
+  const th=[.75,.5,.25];
+  while(e.dropped<3&&e.hp/e.max<th[e.dropped]){e.dropped++;dropMinis(e,2)}
 }
 function hitEnemy(e,st,amt){
   if(e.dead)return;
@@ -916,16 +927,16 @@ function kill(e){
   let g=Math.round(e.def.gold*(1+(Math.min(e.wave.n,MAIN_WAVES)-1)*.03));
   for(const t of S.towers){const st=base(t);if(st.goldKill&&Math.hypot(e.x-t.x,e.y-t.y)<=st.range*TS+e.def.size*.4)g+=st.goldKill}
   S.gold+=g;text(e.x,e.y-e.def.size,'+'+g,'#f4bb4c');wreck(e);sfx('splash');sfx('coin');
-  if(e.def.kraken){S.shake=10;sfx('boom')}
+  if(e.def.kraken&&!e.def.mini){S.shake=10;sfx('boom');if(M.daily)dropMinis(e,3)}
 }
 function leak(e){
   e.dead=true;e.wave.alive--;S.lives=Math.max(0,S.lives-e.def.lives);
   S.shake=9;sfx('leak');text((chestTile().c+.5)*TS,(chestTile().r-.4)*TS,'-'+e.def.lives,'#ff7a63');splash(e.x,e.y,8);
   if(S.lives<=0)gameOver();
 }
-function spawn(type,wave){
-  const d=ED[type],hp=d.hp*hpMul(wave.n),P=PATHS[d.kraken?0:(S.spawnIdx++)%PATHS.length],p=posAt(P,0);
-  S.enemies.push({def:d,wave,path:P,hp,max:hp,armor:d.armor,spd:d.spd*TS*(M.spdMul||1),d:0,x:p.x,y:p.y,ang:p.ang,
+function spawn(type,wave,at){
+  const d=ED[type],hp=d.hp*hpMul(wave.n),P=at?at.path:PATHS[d.kraken?0:(S.spawnIdx++)%PATHS.length],d0=at?at.d:0,p=posAt(P,d0);
+  S.enemies.push({def:d,wave,path:P,hp,max:hp,armor:d.armor,spd:d.spd*TS*(M.spdMul||1),d:d0,x:p.x,y:p.y,ang:p.ang,dropped:0,
     slowT:0,slowF:1,stunT:0,burnT:0,burnDps:0,brkT:0,brk:0,noRegen:0,fearF:1,flash:0,wakeT:0,phase:Math.random()*6});
   wave.alive++;
 }
@@ -978,7 +989,7 @@ function update(dt){
     if(e.stunT>0)e.stunT-=dt;
     if(e.brkT>0)e.brkT-=dt;
     if(e.noRegen>0)e.noRegen-=dt;
-    if(e.burnT>0){e.burnT-=dt;e.hp-=e.burnDps*dt;if(e.hp<=0){kill(e);continue}}
+    if(e.burnT>0){e.burnT-=dt;e.hp-=e.burnDps*dt;if(e.hp<=0){kill(e);continue}krakenDrops(e)}
     const mul=(e.slowT>0?e.slowF:1)*(e.stunT>0?0:1)*e.fearF;
     e.d+=e.spd*mul*dt;
     if(e.d>=e.path.len){leak(e);if(S.over)return;continue}
