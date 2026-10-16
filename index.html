@@ -312,11 +312,17 @@ const MAPS=[
    deco:[[0,0,'lava'],[4,1,'lava'],[8,13,'lava'],[0,13,'lava'],[0,10,'skull'],[8,5,'skull']],embers:true,
    pal:{grass:['#5a5148','#615749','#544b42','#5d5246'],sand:'#8a7a68',sand2:'#9c8b77',sand3:'#7b6b5a',water:['#4a8a9a','#2d6a7a','#1f4f5e'],tuft:'rgba(20,10,5,.4)'}},
 ];
+// Spirale courbe (en ellipse) qui s'enroule vers le coffre au centre
+function spiralPath(cx,cy,r0,rEnd,gap,ky){
+  const pts=[[cx,-1.4]],t0=-Math.PI/2;
+  for(let t=t0;;t+=.12){const r=r0-(t-t0)/(2*Math.PI)*gap;if(r<rEnd)break;pts.push([cx+r*Math.cos(t),cy+r*ky*Math.sin(t)])}
+  pts.push([cx,cy+.3]);return pts;
+}
 // Îles du défi du jour : une par jour, dans l'ordre d'un tirage fixé par la date
 const CHALLENGE_MAPS=[
   {id:'spirale',name:'Spirale du Maelström',diff:'Défi',tier:2,hp:1.15,gold:250,lives:20,
    desc:'Un tourbillon qui s’enroule jusqu’au coffre, caché au cœur de la spirale. Très long, mais chaque pirate couvre deux anneaux.',
-   paths:[[[1,-1.4],[1,12],[7,12],[7,1],[3,1],[3,10],[5,10],[5,4.3]]],chest:{c:5,r:4},
+   paths:[spiralPath(4,6.2,3.7,.85,1.8,1.62)],chest:{c:4,r:6},
    deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[4,13,'barrels']],fog:true,
    pal:{grass:['#4d8a6a','#56926f','#478262','#508c69'],sand:'#d6c79c',sand2:'#e2d6b0',sand3:'#c9b98c',water:['#58c1c9','#2c8ea6','#1a627c'],tuft:'rgba(20,60,40,.45)'}},
   {id:'troisbras',name:'Les Trois Bras',diff:'Défi',tier:2,hp:1.05,gold:270,lives:20,
@@ -356,7 +362,9 @@ let M=null,PATHS=[],grid=[];
 function makeGrid(map){
   const g=Array.from({length:ROWS},()=>Array(COLS).fill(0));
   map.paths.forEach(wp=>{for(let i=0;i<wp.length-1;i++){const [c1,r1]=wp[i],[c2,r2]=wp[i+1],n=Math.ceil(Math.hypot(c2-c1,r2-r1)*10);
-    for(let k=0;k<=n;k++){const c=Math.round(c1+(c2-c1)*k/n),r=Math.round(r1+(r2-r1)*k/n);if(r>=0&&r<ROWS&&c>=0&&c<COLS)g[r][c]=1}}});
+    for(let k=0;k<=n;k++){const x=c1+(c2-c1)*k/n,y=r1+(r2-r1)*k/n;
+      for(let r=Math.round(y)-1;r<=Math.round(y)+1;r++)for(let c=Math.round(x)-1;c<=Math.round(x)+1;c++)
+        if(r>=0&&r<ROWS&&c>=0&&c<COLS&&Math.hypot(c-x,r-y)<.62)g[r][c]=1}}});
   if(map.chest)g[map.chest.r][map.chest.c]=3;else for(let c=3;c<=5;c++)g[13][c]=3;
   map.deco.forEach(([c,r])=>g[r][c]=2);return g;
 }
