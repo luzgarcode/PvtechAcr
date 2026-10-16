@@ -336,6 +336,24 @@ const CHALLENGE_MAPS=[
    deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[1,6,'barrels'],[7,6,'rock']],
    pal:{grass:['#5f9448','#679c4c','#598c43','#62974a'],sand:'#dcc490',sand2:'#e9d3a4',sand3:'#d0b680',water:['#4fb3c2','#2b8aa3','#1d6f8b'],tuft:'rgba(30,70,20,.45)'}},
 ];
+// Vagues du défi : un thème tiré chaque jour, les vagues sont générées à partir d'un budget qui grandit
+const THEMES=[
+  {id:'mixte',name:'Flotte mélangée',desc:'Un peu de tout, comme une vraie escadre.',w:{chaloupe:3,sloop:3,fregate:2,galion:1,fantome:1}},
+  {id:'ruee',name:'Ruée des chaloupes',desc:'Des nuées de petits navires très rapides.',w:{chaloupe:8,sloop:4,fregate:1,galion:0,fantome:0}},
+  {id:'armada',name:'Armada fantôme',desc:'Des vaisseaux fantômes qui se réparent tout seuls.',w:{chaloupe:1,sloop:1,fregate:1,galion:0,fantome:7},ghostEarly:true},
+  {id:'guerre',name:'Flotte de guerre',desc:'Frégates et galions lourdement blindés.',w:{chaloupe:1,sloop:2,fregate:5,galion:3,fantome:0}},
+];
+const UNIT={chaloupe:{cost:1,gap:.45,from:1},sloop:{cost:2,gap:.75,from:1},fregate:{cost:5,gap:1.2,from:4},galion:{cost:13,gap:1.9,from:7},fantome:{cost:4,gap:.9,from:5}};
+function dailyWave(n){
+  const th=M.theme,R=rng(hashStr(M.daily+'-vague-'+n)),budget=6+5*n+.5*n*n;
+  const ok=Object.keys(UNIT).filter(k=>th.w[k]>0&&n>=(k==='fantome'&&th.ghostEarly?2:UNIT[k].from));
+  const pick=()=>{let tot=ok.reduce((a,k)=>a+th.w[k],0),x=R()*tot;for(const k of ok){x-=th.w[k];if(x<=0)return k}return ok[0]};
+  const nG=n<5?1:n<10?2:3,types=[];
+  for(let i=0;i<nG;i++){const k=pick();if(!types.includes(k))types.push(k)}
+  const g=types.map(k=>[k,Math.min(40,Math.max(1,Math.floor(budget/types.length/UNIT[k].cost))),UNIT[k].gap]);
+  if(n%10===0)g.push(['kraken',n/10,14]);
+  return g;
+}
 const MODS=[
   {id:'calme',name:'Calme plat',desc:'Aucune règle spéciale.'},
   {id:'fragile',name:'Coffre fragile',desc:'Seulement 10 trésors.',lives:10},
@@ -355,8 +373,9 @@ function dailyInfo(day=dayKey()){
     if(fighters>=4&&cheap&&legends<=1)break;
   }
   const map=Object.assign({},base,{daily:day,mod,
-    lives:mod.lives||base.lives,gold:Math.round(base.gold*(mod.goldMul||1)),spdMul:mod.spdMul||1});
-  return{day,map,crew,mod};
+    lives:mod.lives||base.lives,gold:Math.round(base.gold*(mod.goldMul||1)),spdMul:mod.spdMul||1,
+    theme:THEMES[hashStr('theme'+day)%THEMES.length]});
+  return{day,map,crew,mod,theme:map.theme};
 }
 let M=null,PATHS=[],grid=[];
 function makeGrid(map){
@@ -521,7 +540,7 @@ const ED={
   fregate:{name:'Frégate',hp:210,spd:.85,armor:6,gold:14,lives:2,size:21,hull:'#5d3b22',deck:'#9c734a',masts:[[.38,.6],[-.22,.68]],navy:1},
   galion:{name:'Galion',hp:560,spd:.6,armor:11,gold:30,lives:4,size:26,hull:'#4a2f1c',deck:'#8a6440',masts:[[.45,.55],[0,.68],[-.45,.58]],navy:1,trim:1,big:1},
   fantome:{name:'Vaisseau fantôme',hp:150,spd:1.05,armor:0,gold:15,lives:2,size:19,hull:'#3d5c57',deck:'#56807a',masts:[[.3,.62],[-.3,.62]],ghost:1,regen:.04},
-  kraken:{name:'Kraken',hp:2600,spd:.42,armor:7,gold:150,lives:6,size:30,kraken:1,big:1},
+  kraken:{name:'Kraken',hp:2600,spd:.42,armor:7,gold:150,lives:10,size:30,kraken:1,big:1},
 };
 const WAVES=[
   [['chaloupe',8,1]],[['chaloupe',12,.8]],[['chaloupe',6,.8],['sloop',4,1.4]],[['sloop',10,1.1]],
@@ -530,9 +549,10 @@ const WAVES=[
   [['sloop',10,.7],['fantome',6,1.2],['galion',2,3]],[['chaloupe',10,.5],['kraken',1,1]],
   [['fregate',8,1.2],['galion',3,2.5]],[['fantome',12,.9],['fregate',6,1.2]],
   [['sloop',12,.5],['galion',5,2.2]],[['chaloupe',20,.3],['fregate',8,1],['galion',4,2]],
-  [['fantome',10,.8],['galion',6,1.8],['kraken',2,12]],
+  [['fantome',10,.8],['galion',6,1.8],['kraken',2,6]],
 ];
 function waveDef(n){
+  if(M.daily)return dailyWave(n);
   let g;
   if(n<=WAVES.length){g=WAVES[n-1].slice();if(M.krakenEarly&&n===6)g.push(['kraken',1,1])}
   else{const k=n-MAIN_WAVES;g=[['sloop',8+k,.45],['fantome',6+k,.7],['fregate',5+k,.9],['galion',2+Math.ceil(k/2),1.6]];if(n%5===0)g.push(['kraken',1+Math.floor(k/10),4])}
@@ -1346,7 +1366,7 @@ function renderDaily(){
   const info=dailyInfo(),d=SV.daily&&SV.daily.day===info.day?SV.daily:null;
   $('dyDate').textContent='Défi du '+new Date(info.day+'T12:00:00Z').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   $('dyMap').textContent=info.map.name;$('dyDesc').textContent=info.map.desc;
-  $('dyMod').innerHTML=`<span class="chip d3">${info.mod.name}</span> <span>${info.mod.desc}</span>`;
+  $('dyMod').innerHTML=`<span class="chip d3">${info.mod.name}</span> <span>${info.mod.desc}</span></p><p class="dyMod"><span class="chip d2">${info.theme.name}</span> <span>${info.theme.desc}</span>`;
   const c=$('dyPrev'),dpr=Math.min(window.devicePixelRatio||1,2),k=110*dpr/W;c.width=Math.round(W*k);c.height=Math.round(H*k);buildBg(c,info.map,k);
   $('dyCrew').innerHTML=info.crew.map(id=>`<button class="slot full" data-dy="${id}" aria-label="Fiche de ${PBY[id].name}"><canvas data-por="${id}"></canvas></button>`).join('');
   $('dyCrew').querySelectorAll('canvas[data-por]').forEach(cv2=>portrait(cv2,PBY[cv2.dataset.por],60,false));
