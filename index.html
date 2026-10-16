@@ -561,7 +561,7 @@ function waveDef(n){
   if(M.daily)return dailyWave(n);
   let g;
   if(n<=WAVES.length){g=WAVES[n-1].slice();if(M.krakenEarly&&n===6)g.push(['kraken',1,1])}
-  else{const k=n-MAIN_WAVES;g=[['sloop',8+k,.45],['fantome',6+k,.7],['fregate',5+k,.9],['galion',2+Math.ceil(k/2),1.6]];if(n%5===0)g.push(['kraken',1+Math.floor(k/10),4])}
+  else{const k=n-MAIN_WAVES;g=[['sloop',8+k,.45],['fantome',6+k,.7],['fregate',5+k,.9],['galion',2+Math.ceil(k/2),1.6]];if(n%5===0)g.push(['kraken',Math.min(2,1+Math.floor(k/10)),12])}
   return g;
 }
 function hpMul(n){
@@ -1021,7 +1021,7 @@ function dropMinis(e,n){
   splash(e.x,e.y,10);text(e.x,e.y-e.def.size-10,'Petits krakens !','#e8b8ef');
 }
 function krakenDrops(e){
-  if(!M.daily||!e.def.kraken||e.def.mini)return;
+  if(!(M.daily||e.wave.n>MAIN_WAVES)||!e.def.kraken||e.def.mini)return;
   const th=[.75,.5,.25];
   while(e.dropped<3&&e.hp/e.max<th[e.dropped]){e.dropped++;dropMinis(e,2)}
 }
@@ -1047,7 +1047,7 @@ function kill(e){
   let g=Math.round(e.def.gold*(1+(Math.min(e.wave.n,MAIN_WAVES)-1)*.03));
   for(const t of S.towers){const st=base(t);if(st.goldKill&&Math.hypot(e.x-t.x,e.y-t.y)<=st.range*TS+e.def.size*.4)g+=st.goldKill}
   S.gold+=g;text(e.x,e.y-e.def.size,'+'+g,'#f4bb4c');wreck(e);sfx('splash');sfx('coin');
-  if(e.def.kraken&&!e.def.mini){S.shake=10;sfx('boom');if(M.daily)dropMinis(e,3)}
+  if(e.def.kraken&&!e.def.mini){S.shake=10;sfx('boom');if(M.daily||e.wave.n>MAIN_WAVES)dropMinis(e,3)}
 }
 function leak(e){
   e.dead=true;e.wave.alive--;S.lives=Math.max(0,S.lives-e.def.lives);
