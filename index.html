@@ -53,7 +53,14 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .homeStats b{color:var(--parch)}
 
 /* Îles */
-.lbTabs{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.lbTabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.big.gold{background:linear-gradient(#f6c75a,#d39a2a);color:var(--timber);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 3px 0 #7d5310}
+.dyCard{display:grid;grid-template-columns:110px 1fr;gap:12px;align-items:center;background:linear-gradient(var(--plank),var(--timber-2));border:1px solid var(--gold-deep);border-radius:14px;padding:10px}
+.dyCard canvas{width:110px;height:171px;border-radius:8px;display:block}
+.dyCard h3{font-family:var(--display);font-weight:400;font-size:28px;line-height:1;margin:2px 0 6px;color:var(--gold)}
+.dyCard p{margin:0;color:var(--muted);font-weight:700;font-size:14px;line-height:1.35}
+.dyCard .dyDate{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--parch)}
+.dyCard .dyMod{margin-top:8px;color:var(--parch);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .lbTab{border:1px solid var(--line);background:var(--timber-2);border-radius:10px;padding:8px 2px;font-weight:800;font-size:13px}
 .lbTab[aria-selected="true"]{background:var(--gold);color:var(--timber);border-color:var(--gold-deep)}
 .lbMe{display:flex;gap:6px;align-items:center;background:linear-gradient(var(--plank),var(--timber-2));border:1px solid var(--line);border-radius:12px;padding:8px}
@@ -186,9 +193,24 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
     <div class="homeStats" id="homeStats"></div>
     <div class="homeBtns">
       <button class="big" id="bPlay">Prendre la mer</button>
+      <button class="big gold" id="bDaily">Défi du jour</button>
       <button class="big alt" id="bCrew">Taverne des pirates</button>
       <button class="big alt" id="bLeader">Classement mondial</button>
     </div>
+  </section>
+
+  <section class="view" id="vDaily" hidden>
+    <div class="mhead"><button class="back" data-go="home">Retour</button><h2>Défi du jour</h2></div>
+    <div class="scroll">
+      <div class="dyCard">
+        <canvas id="dyPrev"></canvas>
+        <div><p class="dyDate" id="dyDate"></p><h3 id="dyMap"></h3><p id="dyDesc"></p><p class="dyMod" id="dyMod"></p></div>
+      </div>
+      <p class="crewHint">Équipage imposé, le même pour tout le monde (même les pirates que vous n’avez pas encore débloqués). Touchez un pirate pour lire sa fiche.</p>
+      <div class="slots" id="dyCrew"></div>
+      <p class="crewHint" id="dyRec"></p>
+    </div>
+    <div class="foot"><button class="big" id="bDailyGo">Relever le défi</button></div>
   </section>
 
   <section class="view" id="vLeader" hidden>
@@ -290,12 +312,53 @@ const MAPS=[
    deco:[[0,0,'lava'],[4,1,'lava'],[8,13,'lava'],[0,13,'lava'],[0,10,'skull'],[8,5,'skull']],embers:true,
    pal:{grass:['#5a5148','#615749','#544b42','#5d5246'],sand:'#8a7a68',sand2:'#9c8b77',sand3:'#7b6b5a',water:['#4a8a9a','#2d6a7a','#1f4f5e'],tuft:'rgba(20,10,5,.4)'}},
 ];
+// Îles du défi du jour : une par jour, dans l'ordre d'un tirage fixé par la date
+const CHALLENGE_MAPS=[
+  {id:'spirale',name:'Spirale du Maelström',diff:'Défi',tier:2,hp:1.15,gold:250,lives:20,
+   desc:'Un tourbillon qui s’enroule jusqu’au coffre, caché au cœur de la spirale. Très long, mais chaque pirate couvre deux anneaux.',
+   paths:[[[1,-1.4],[1,12],[7,12],[7,1],[3,1],[3,10],[5,10],[5,4.3]]],chest:{c:5,r:4},
+   deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[4,13,'barrels']],fog:true,
+   pal:{grass:['#4d8a6a','#56926f','#478262','#508c69'],sand:'#d6c79c',sand2:'#e2d6b0',sand3:'#c9b98c',water:['#58c1c9','#2c8ea6','#1a627c'],tuft:'rgba(20,60,40,.45)'}},
+  {id:'troisbras',name:'Les Trois Bras',diff:'Défi',tier:2,hp:1.05,gold:270,lives:20,
+   desc:'Trois chenaux courts arrivent de trois côtés et se rejoignent juste avant le coffre.',
+   paths:[[[1,-1.4],[1,5],[4,5],[4,12.3]],[[7,-1.4],[7,5],[4,5],[4,12.3]],[[-1.4,9],[4,9],[4,12.3]]],
+   deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[4,1,'rock'],[8,10,'barrels']],
+   pal:{grass:['#7a9a46','#83a34b','#728f40','#7d9d48'],sand:'#e8c98c',sand2:'#f2d8a2',sand3:'#dbb87a',water:['#4fb3c2','#2b8aa3','#1d6f8b'],tuft:'rgba(50,70,20,.45)'}},
+  {id:'lignedroite',name:'La Ligne Droite',diff:'Défi',tier:2,hp:1.25,gold:260,lives:20,
+   desc:'Un seul chenal tout droit, du haut jusqu’au coffre. Aucun virage pour vous aider : tout se joue sur le placement.',
+   paths:[[[4,-1.4],[4,12.3]]],
+   deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[1,6,'barrels'],[7,6,'rock']],
+   pal:{grass:['#5f9448','#679c4c','#598c43','#62974a'],sand:'#dcc490',sand2:'#e9d3a4',sand3:'#d0b680',water:['#4fb3c2','#2b8aa3','#1d6f8b'],tuft:'rgba(30,70,20,.45)'}},
+];
+const MODS=[
+  {id:'calme',name:'Calme plat',desc:'Aucune règle spéciale.'},
+  {id:'fragile',name:'Coffre fragile',desc:'Seulement 10 trésors.',lives:10},
+  {id:'butin',name:'Butin royal',desc:'Or de départ ×1,5.',goldMul:1.5},
+  {id:'tempete',name:'Mer agitée',desc:'Les navires vont 15 % plus vite.',spdMul:1.15},
+];
+function dayKey(d=new Date()){return d.toISOString().slice(0,10)}
+function hashStr(t){let h=2166136261;for(const ch of t){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function dailyInfo(day=dayKey()){
+  const R=rng(hashStr('pirate-bastion-'+day));
+  const base=CHALLENGE_MAPS[hashStr('map'+day)%CHALLENGE_MAPS.length],mod=MODS[Math.floor(R()*MODS.length)];
+  let crew;
+  for(let tries=0;tries<200;tries++){
+    const pool=PIR.slice();crew=[];
+    while(crew.length<5){crew.push(pool.splice(Math.floor(R()*pool.length),1)[0].id)}
+    const ps=crew.map(id=>PBY[id]),fighters=ps.filter(p=>p.kind!=='none').length,cheap=ps.some(p=>p.cost<=80&&p.kind!=='none'),legends=ps.filter(p=>p.rar==='legende').length;
+    if(fighters>=4&&cheap&&legends<=1)break;
+  }
+  const map=Object.assign({},base,{daily:day,mod,
+    lives:mod.lives||base.lives,gold:Math.round(base.gold*(mod.goldMul||1)),spdMul:mod.spdMul||1});
+  return{day,map,crew,mod};
+}
 let M=null,PATHS=[],grid=[];
 function makeGrid(map){
   const g=Array.from({length:ROWS},()=>Array(COLS).fill(0));
   map.paths.forEach(wp=>{for(let i=0;i<wp.length-1;i++){const [c1,r1]=wp[i],[c2,r2]=wp[i+1],n=Math.ceil(Math.hypot(c2-c1,r2-r1)*10);
     for(let k=0;k<=n;k++){const c=Math.round(c1+(c2-c1)*k/n),r=Math.round(r1+(r2-r1)*k/n);if(r>=0&&r<ROWS&&c>=0&&c<COLS)g[r][c]=1}}});
-  for(let c=3;c<=5;c++)g[13][c]=3;map.deco.forEach(([c,r])=>g[r][c]=2);return g;
+  if(map.chest)g[map.chest.r][map.chest.c]=3;else for(let c=3;c<=5;c++)g[13][c]=3;
+  map.deco.forEach(([c,r])=>g[r][c]=2);return g;
 }
 function setupMap(map){
   M=map;
@@ -563,8 +626,9 @@ function buildBg(cvs,map,K){
   c.save();c.lineJoin='round';c.lineCap='round';
   [[P.sand2,1.16],[P.sand3,1],[P.water[0],.92],[P.water[1],.7],[P.water[2],.42]].forEach(([col,w])=>{c.strokeStyle=col;c.lineWidth=TS*w;chs.forEach(ch=>c.stroke(ch))});
   c.restore();
-  c.fillStyle=P.sand2;rr(c,3*TS+2,13*TS-6,3*TS-4,TS+6,14);c.fill();
-  c.fillStyle='#8a5e35';for(let i=0;i<3;i++)c.fillRect(4*TS-TS*.38+i*TS*.27,12.55*TS,TS*.22,TS*.5);
+  if(map.chest){c.fillStyle=P.sand2;circ(c,(map.chest.c+.5)*TS,(map.chest.r+.5)*TS,TS*.62);c.fill()}
+  else{c.fillStyle=P.sand2;rr(c,3*TS+2,13*TS-6,3*TS-4,TS+6,14);c.fill();
+  c.fillStyle='#8a5e35';for(let i=0;i<3;i++)c.fillRect(4*TS-TS*.38+i*TS*.27,12.55*TS,TS*.22,TS*.5)}
   map.deco.forEach(([cc,r,k])=>drawDecoItem(c,(cc+.5)*TS,(r+.5)*TS,k,R));
   const v=c.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.75);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(10,25,20,.35)');c.fillStyle=v;c.fillRect(0,0,W,H);
 }
@@ -770,7 +834,7 @@ function newGame(map,crew){
   setupMap(map);
   S={crew:crew.slice(),gold:map.gold,lives:map.lives,maxLives:map.lives,wave:0,cleared:0,earned:0,healAcc:0,
      enemies:[],towers:[],proj:[],fx:[],wakes:[],mines:[],waves:[],sel:null,selTile:null,pick:null,
-     speed:SV.speed||1,paused:false,over:false,won:false,endless:false,shake:0,towerAt:new Map(),spawnIdx:0};
+     speed:SV.speed||1,paused:false,over:false,won:false,endless:!!map.daily,shake:0,towerAt:new Map(),spawnIdx:0};
 }
 function fx(o){S.fx.push(o);if(S.fx.length>600)S.fx.shift()}
 function puff(x,y,n,col='220,214,200',sz=6){for(let i=0;i<n;i++)fx({k:'puff',x,y,vx:(Math.random()-.5)*30,vy:(Math.random()-.5)*30-8,life:.6+Math.random()*.4,max:1,r:sz*(.6+Math.random()*.6),col})}
@@ -827,12 +891,12 @@ function kill(e){
 }
 function leak(e){
   e.dead=true;e.wave.alive--;S.lives=Math.max(0,S.lives-e.def.lives);
-  S.shake=9;sfx('leak');text(4.5*TS,12.6*TS,'-'+e.def.lives,'#ff7a63');splash(e.x,e.y,8);
+  S.shake=9;sfx('leak');text((chestTile().c+.5)*TS,(chestTile().r-.4)*TS,'-'+e.def.lives,'#ff7a63');splash(e.x,e.y,8);
   if(S.lives<=0)gameOver();
 }
 function spawn(type,wave){
   const d=ED[type],hp=d.hp*hpMul(wave.n),P=PATHS[d.kraken?0:(S.spawnIdx++)%PATHS.length],p=posAt(P,0);
-  S.enemies.push({def:d,wave,path:P,hp,max:hp,armor:d.armor,spd:d.spd*TS,d:0,x:p.x,y:p.y,ang:p.ang,
+  S.enemies.push({def:d,wave,path:P,hp,max:hp,armor:d.armor,spd:d.spd*TS*(M.spdMul||1),d:0,x:p.x,y:p.y,ang:p.ang,
     slowT:0,slowF:1,stunT:0,burnT:0,burnDps:0,brkT:0,brk:0,noRegen:0,fearF:1,flash:0,wakeT:0,phase:Math.random()*6});
   wave.alive++;
 }
@@ -856,12 +920,19 @@ function waveCleared(w){
   S.gold+=g+extra;
   text(W/2,H/2,'Vague '+w.n+' repoussée  +'+(g+extra),'#97d36f');
   let healed=0;while(S.healAcc>=1){S.healAcc-=1;if(S.lives<S.maxLives){S.lives++;healed++}}
-  if(healed)text(4.5*TS,12.2*TS,'+'+healed+' trésor','#97d36f');
+  if(healed)text((chestTile().c+.5)*TS,(chestTile().r-.8)*TS,'+'+healed+' trésor','#97d36f');
   S.cleared=Math.max(S.cleared,w.n);
   const dbl=8*M.tier;S.earned+=dbl;SV.doublons+=dbl;
-  const rec=mapRec(M.id);rec.best=Math.max(rec.best,w.n);
-  if(w.n===MAIN_WAVES&&!S.endless&&S.lives>0){rec.won=true;const vb=150*M.tier;S.earned+=vb;SV.doublons+=vb;S.won=true;sfx('win')}
-  SV.maps[M.id]=rec;save();
+  if(M.daily){
+    const d=SV.daily&&SV.daily.day===M.daily?SV.daily:{day:M.daily,wave:0,lives:0,tries:0};
+    if(w.n>d.wave||(w.n===d.wave&&S.lives>d.lives)){d.wave=w.n;d.lives=S.lives}
+    SV.daily=d;save();
+  }else{
+    const rec=mapRec(M.id);
+    if(w.n>rec.best||(w.n===rec.best&&S.lives>(rec.bestLives||0))){rec.best=w.n;rec.bestLives=S.lives}
+    if(w.n===MAIN_WAVES&&!S.endless&&S.lives>0){rec.won=true;const vb=150*M.tier;S.earned+=vb;SV.doublons+=vb;S.won=true;sfx('win')}
+    SV.maps[M.id]=rec;save();
+  }
   if(S.won){showEnd(true);pushScores()}
 }
 function gameOver(){S.over=true;S.sel=null;S.selTile=null;S.pick=null;renderPanel();showEnd(false);pushScores()}
@@ -1066,8 +1137,9 @@ function drawFx(f){
     case'text':ctx.globalAlpha=Math.min(1,a*2);ctx.font='20px "Pirata One",Georgia,serif';ctx.textAlign='center';ctx.lineWidth=4;ctx.strokeStyle='#20140c';ctx.strokeText(f.str,f.x,f.y);ctx.fillStyle=f.col;ctx.fillText(f.str,f.x,f.y);ctx.globalAlpha=1;break;
   }
 }
+function chestTile(){return M&&M.chest||{c:4,r:13}}
 function drawChest(t){
-  const x=4.5*TS,y=13.42*TS,f=S.lives/S.maxLives;
+  const ch=chestTile(),x=(ch.c+.5)*TS,y=(ch.r+.42)*TS,f=S.lives/S.maxLives;
   ctx.fillStyle='rgba(60,40,10,.3)';ell(ctx,x+3,y+12,24,7);ctx.fill();
   ctx.fillStyle='#6e3f1d';rr(ctx,x-19,y-16,38,10,4);ctx.fill();
   if(f>0){ctx.fillStyle='#f4c542';ctx.beginPath();ctx.ellipse(x,y-4,16,4+f*7,0,Math.PI,0);ctx.fill();
@@ -1118,7 +1190,8 @@ function openSheet(id,where){
     else{const full=SV.crew.length>=CREW_MAX;btns=`<button class="big" data-s="add" ${full?'disabled':''}>${full?'Équipage complet':'Embarquer'}</button><button class="big alt" data-s="close">Fermer</button>`}
   }else if(where==='tavern'){
     btns=owned?`<button class="big alt only" data-s="close">Fermer</button>`:`<button class="big" data-s="buy" ${SV.doublons<r.price?'disabled':''}>Débloquer · ${r.price}</button><button class="big alt" data-s="close">Fermer</button>`;
-  }else btns=`<button class="big alt only" data-s="close">Retour à la partie</button>`;
+  }else if(where==='daily')btns=`<button class="big alt only" data-s="close">Fermer</button>`;
+  else btns=`<button class="big alt only" data-s="close">Retour à la partie</button>`;
   $('paper').innerHTML=`
     <div class="phead" style="--rc:${r.col}"><canvas id="sheetCv"></canvas><div><h3>${p.name}</h3><div class="sub">${p.title}</div><span class="rar">${r.name}</span></div></div>
     <div class="ptags">${p.tags.map(t=>`<span>${t}</span>`).join('')}</div>
@@ -1126,7 +1199,7 @@ function openSheet(id,where){
     <div class="vs"><div class="g"><b>Fort contre</b>${p.good}</div><div class="w"><b>Faible contre</b>${p.bad}</div></div>
     <table class="stbl"><thead><tr><th></th><th>Niv. 1</th><th>Niv. 2</th><th>Niv. 3</th></tr></thead>
     <tbody>${statRows(p).map(row=>`<tr>${row.map((v,i)=>i?`<td>${v}</td>`:`<th>${v}</th>`).join('')}</tr>`).join('')}</tbody></table>
-    ${owned||where==='game'?'':`<p class="note">Vous avez ${SV.doublons} doublons. Chaque vague repoussée en rapporte.</p>`}
+    ${owned||where==='game'||where==='daily'?'':`<p class="note">Vous avez ${SV.doublons} doublons. Chaque vague repoussée en rapporte.</p>`}
     <div class="pbtns">${btns}</div>`;
   portrait($('sheetCv'),p,96,false);
   $('sheet').hidden=false;$('sheet').dataset.id=id;$('sheet').dataset.where=where;
@@ -1143,14 +1216,14 @@ $('sheet').addEventListener('click',ev=>{
   if(a==='buy'){const pr=RAR[p.rar].price;if(SV.doublons<pr)return;SV.doublons-=pr;SV.unlocked.push(id);if(where==='crew'&&SV.crew.length<CREW_MAX)SV.crew.push(id);save();initAudio();sfx('coin');sfx('build')}
   if(a==='add'&&SV.crew.length<CREW_MAX&&!SV.crew.includes(id)){SV.crew.push(id);save()}
   if(a==='drop'){SV.crew=SV.crew.filter(x=>x!==id);save()}
-  closeSheet();if(where!=='game')renderCrew();
+  closeSheet();if(where==='crew'||where==='tavern')renderCrew();
 });
 
 // =============== Navigation ===============
 let view='home',crewMode='tavern',chosenMap=null;
 function show(v){
-  view=v;for(const [k,id] of [['home','vHome'],['maps','vMaps'],['crew','vCrew'],['game','vGame'],['leader','vLeader']])$(id).hidden=k!==v;
-  if(v==='leader')renderLeader();
+  view=v;for(const [k,id] of [['home','vHome'],['maps','vMaps'],['crew','vCrew'],['game','vGame'],['leader','vLeader'],['daily','vDaily']])$(id).hidden=k!==v;
+  if(v==='leader')renderLeader();if(v==='daily')renderDaily();
   if(v==='home')renderHome();if(v==='maps')renderMaps();if(v==='crew')renderCrew();if(v==='game')resize();
 }
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
@@ -1159,18 +1232,21 @@ $('bCrew').onclick=()=>{initAudio();crewMode='tavern';show('crew')};
 $('bLeader').onclick=()=>{initAudio();show('leader')};
 
 // =============== Classement mondial (base partagée) ===============
-// Un document par joueur : scores/<id> = {pseudo, best:{île: vague}, at}
-let LB={db:null,uid:null,docs:[],state:'loading',map:'crique',writeOk:true,pending:null};
-const SHORT={crique:'Crique',brumes:'Lagon',recif:'Récif',volcan:'Volcan'};
+// Un document par joueur : scores/<id> = {pseudo, best:{île: vague}, lives:{île: trésor}, daily:{day,wave,lives,map}, at}
+// À égalité de vagues, celui qui avait le plus de trésor passe devant, puis le premier arrivé.
+let LB={db:null,uid:null,docs:[],state:'loading',map:'daily',writeOk:true,pending:null};
+const SHORT={daily:'Défi',crique:'Crique',brumes:'Lagon',recif:'Récif',volcan:'Volcan'};
 function cleanPseudo(v){return String(v||'').replace(/\s+/g,' ').trim().slice(0,16)}
-function myBest(){const b={};for(const m of MAPS){const r=mapRec(m.id);if(r.best)b[m.id]=r.best}return b}
+const better=(w1,l1,w2,l2)=>w1>w2||(w1===w2&&l1>l2);
 function pushScores(){
   if(!LB.db||!LB.uid||!LB.writeOk||!SV.pseudo)return;
-  const mine=LB.docs.find(d=>d.id===LB.uid),old=mine?mine.best||{}:{},best=Object.assign({},old);
-  let changed=!mine||mine.pseudo!==SV.pseudo;
-  for(const [k,v] of Object.entries(myBest()))if(!(best[k]>=v)){best[k]=v;changed=true}
+  const mine=LB.docs.find(d=>d.id===LB.uid)||{},best=Object.assign({},mine.best),lives=Object.assign({},mine.lives);
+  let changed=mine.pseudo!==SV.pseudo,daily=mine.daily||null;
+  for(const m of MAPS){const r=mapRec(m.id);if(r.best&&better(r.best,r.bestLives||0,best[m.id]||0,lives[m.id]||0)){best[m.id]=r.best;lives[m.id]=r.bestLives||0;changed=true}}
+  const d=SV.daily;
+  if(d&&d.wave>0&&(!daily||daily.day!==d.day||better(d.wave,d.lives,daily.wave,daily.lives))){daily={day:d.day,wave:d.wave,lives:d.lives,map:dailyInfo(d.day).map.id};changed=true}
   if(!changed)return;
-  const body={pseudo:SV.pseudo,best,at:Date.now()};
+  const body={pseudo:SV.pseudo,best,lives,at:Date.now()};if(daily)body.daily=daily;
   LB.pending=(LB.pending||Promise.resolve()).then(()=>LB.db.doc('scores/'+LB.uid).set(body)).catch(e=>{
     if(e&&(e.code==='invalid_argument'||e.code==='not_granted')){LB.writeOk=false;if(view==='leader')renderLeader()}
   });
@@ -1182,35 +1258,69 @@ function pushScores(){
     LB.db=db;LB.uid=user?await user.id():null;
     db.collection('scores').onSnapshot(snap=>{
       LB.docs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));LB.state='on';
-      if(view==='leader')renderLeader();
+      if(view==='leader')renderLeader();if(view==='daily')renderDaily();
       if(!snap.metadata.fromCache&&!LB.synced){LB.synced=true;pushScores()}
     },()=>{LB.state='off';if(view==='leader')renderLeader()});
   }catch(e){LB.state='off';if(view==='leader')renderLeader()}
 })();
+function dailyRows(day){
+  return LB.docs.filter(d=>d.pseudo&&d.daily&&d.daily.day===day&&d.daily.wave>0)
+    .map(d=>({id:d.id,pseudo:d.pseudo,wave:d.daily.wave,lives:d.daily.lives||0,at:d.at||0}))
+    .sort((a,b)=>b.wave-a.wave||b.lives-a.lives||a.at-b.at);
+}
+function mapRows(id){
+  return LB.docs.filter(d=>d.pseudo&&d.best&&d.best[id]>0)
+    .map(d=>({id:d.id,pseudo:d.pseudo,wave:d.best[id],lives:(d.lives&&d.lives[id])||0,at:d.at||0}))
+    .sort((a,b)=>b.wave-a.wave||b.lives-a.lives||a.at-b.at);
+}
+function fillRows(list,rows,empty){
+  list.innerHTML='';
+  if(!rows.length){const li=document.createElement('li');li.className='lbNote';li.textContent=empty;list.appendChild(li);return}
+  rows.slice(0,100).forEach((d,i)=>{
+    const li=document.createElement('li');li.className='lbRow'+(i<3?' r'+(i+1):'')+(d.id===LB.uid?' me':'');
+    const rk=document.createElement('span');rk.className='rk';rk.textContent=i+1;
+    const nm=document.createElement('span');nm.className='nm';nm.textContent=cleanPseudo(d.pseudo)||'Pirate';
+    const sc=document.createElement('span');sc.className='sc';sc.textContent=d.wave;
+    const sm=document.createElement('small');sm.textContent=(d.wave>1?'vagues':'vague')+' · '+d.lives+' trésor'+(d.lives>1?'s':'');sc.appendChild(sm);
+    li.append(rk,nm,sc);list.appendChild(li);
+  });
+}
 function renderLeader(){
-  $('lbTabs').innerHTML=MAPS.map(m=>`<button class="lbTab" role="tab" data-lb="${m.id}" aria-selected="${m.id===LB.map}">${SHORT[m.id]}</button>`).join('');
+  $('lbTabs').innerHTML=Object.keys(SHORT).map(k=>`<button class="lbTab" role="tab" data-lb="${k}" aria-selected="${k===LB.map}">${SHORT[k]}</button>`).join('');
   $('lbTabs').querySelectorAll('[data-lb]').forEach(b=>b.onclick=()=>{LB.map=b.dataset.lb;renderLeader()});
   if(document.activeElement!==$('lbPseudo'))$('lbPseudo').value=SV.pseudo||'';
   const note=$('lbNote'),list=$('lbList');
   if(LB.state==='loading'){note.textContent='Chargement du classement…';list.innerHTML='';return}
   if(LB.state==='off'){note.textContent='Le classement n’est pas disponible ici. Ouvrez le jeu depuis claude.ai en étant connecté.';list.innerHTML='';return}
-  const rec=mapRec(LB.map).best;
-  note.textContent=!SV.pseudo?'Choisissez un pseudo pour apparaître dans le classement. On y entre avec sa meilleure vague repoussée sur chaque île, mode sans fin compris.'
+  const isDaily=LB.map==='daily',info=isDaily?dailyInfo():null;
+  let mine;
+  if(isDaily){const d=SV.daily&&SV.daily.day===info.day?SV.daily:null;mine=d&&d.wave?`${d.wave} vague${d.wave>1?'s':''}, ${d.lives} trésor${d.lives>1?'s':''}`:'aucun'}
+  else{const r=mapRec(LB.map);mine=r.best?`${r.best} vague${r.best>1?'s':''}, ${r.bestLives||0} trésor${(r.bestLives||0)>1?'s':''}`:'aucun'}
+  note.textContent=!SV.pseudo?'Choisissez un pseudo pour apparaître dans le classement. À égalité de vagues, celui qui garde le plus de trésor passe devant.'
     :!LB.uid||!LB.writeOk?'Vous voyez le classement, mais ce compte ne peut pas y envoyer de score. Demandez au créateur du jeu de vous inviter.'
-    :`Votre record sur ${MAPS.find(m=>m.id===LB.map).name} : ${rec?rec+' vague'+(rec>1?'s':''):'aucun'}. Il s’envoie tout seul à la fin de chaque partie.`;
-  const rows=LB.docs.filter(d=>d.best&&d.best[LB.map]>0&&d.pseudo).sort((a,b)=>b.best[LB.map]-a.best[LB.map]||(a.at||0)-(b.at||0)).slice(0,100);
-  list.innerHTML='';
-  if(!rows.length){const li=document.createElement('li');li.className='lbNote';li.textContent='Personne n’a encore de score sur cette île. À vous de jouer !';list.appendChild(li);return}
-  rows.forEach((d,i)=>{
-    const li=document.createElement('li');li.className='lbRow'+(i<3?' r'+(i+1):'')+(d.id===LB.uid?' me':'');
-    const rk=document.createElement('span');rk.className='rk';rk.textContent=i+1;
-    const nm=document.createElement('span');nm.className='nm';nm.textContent=cleanPseudo(d.pseudo)||'Pirate';
-    const sc=document.createElement('span');sc.className='sc';sc.textContent=d.best[LB.map];const sm=document.createElement('small');sm.textContent='vagues';sc.appendChild(sm);
-    li.append(rk,nm,sc);list.appendChild(li);
-  });
+    :isDaily?`Défi du ${info.day.split('-').reverse().join('/')} sur ${info.map.name}. Votre meilleur essai : ${mine}.`
+    :`Votre record sur ${MAPS.find(m=>m.id===LB.map).name} : ${mine}. Il s’envoie tout seul à la fin de chaque partie.`;
+  fillRows(list,isDaily?dailyRows(info.day):mapRows(LB.map),isDaily?'Personne n’a encore joué le défi aujourd’hui. À vous de jouer !':'Personne n’a encore de score sur cette île. À vous de jouer !');
 }
 $('lbSave').onclick=()=>{const v=cleanPseudo($('lbPseudo').value);if(!v)return;SV.pseudo=v;save();pushScores();renderLeader();$('lbSave').textContent='Enregistré';setTimeout(()=>$('lbSave').textContent='Enregistrer',1500)};
 $('lbPseudo').addEventListener('keydown',e=>{if(e.key==='Enter')$('lbSave').click()});
+
+// =============== Défi du jour ===============
+function untilTomorrow(){const n=new Date(),t=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate()+1),m=Math.max(0,Math.round((t-n)/60000));return `${Math.floor(m/60)} h ${String(m%60).padStart(2,'0')}`}
+function renderDaily(){
+  const info=dailyInfo(),d=SV.daily&&SV.daily.day===info.day?SV.daily:null;
+  $('dyDate').textContent='Défi du '+new Date(info.day+'T12:00:00Z').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  $('dyMap').textContent=info.map.name;$('dyDesc').textContent=info.map.desc;
+  $('dyMod').innerHTML=`<span class="chip d3">${info.mod.name}</span> <span>${info.mod.desc}</span>`;
+  const c=$('dyPrev'),dpr=Math.min(window.devicePixelRatio||1,2),k=110*dpr/W;c.width=Math.round(W*k);c.height=Math.round(H*k);buildBg(c,info.map,k);
+  $('dyCrew').innerHTML=info.crew.map(id=>`<button class="slot full" data-dy="${id}" aria-label="Fiche de ${PBY[id].name}"><canvas data-por="${id}"></canvas></button>`).join('');
+  $('dyCrew').querySelectorAll('canvas[data-por]').forEach(cv2=>portrait(cv2,PBY[cv2.dataset.por],60,false));
+  $('dyCrew').querySelectorAll('[data-dy]').forEach(b=>b.onclick=()=>openSheet(b.dataset.dy,'daily'));
+  const rows=dailyRows(info.day),pos=rows.findIndex(r=>r.id===LB.uid);
+  $('dyRec').textContent=(d&&d.wave?`Votre meilleur essai : ${d.wave} vague${d.wave>1?'s':''} avec ${d.lives} trésor${d.lives>1?'s':''}${pos>=0?`, ${pos+1}ᵉ sur ${rows.length}`:''}. `:'Pas encore joué aujourd’hui. ')+`Essais illimités, seul le meilleur compte. Nouveau défi dans ${untilTomorrow()}.`;
+}
+$('bDaily').onclick=()=>{initAudio();show('daily')};
+$('bDailyGo').onclick=()=>{initAudio();const info=dailyInfo();startGame(info.map,info.crew)};
 $('crewBack').onclick=()=>show(crewMode==='select'?'maps':'home');
 
 function renderHome(){
@@ -1256,8 +1366,9 @@ function renderCrew(){
 }
 $('bSail').onclick=()=>{if(!SV.crew.length)return;initAudio();startGame(chosenMap)};
 
-function startGame(map){
-  newGame(map,SV.crew);
+function startGame(map,crew=SV.crew){
+  newGame(map,crew);
+  if(map.daily){const d=SV.daily&&SV.daily.day===map.daily?SV.daily:{day:map.daily,wave:0,lives:0,tries:0};d.tries=(d.tries||0)+1;SV.daily=d;save()}
   $('endScreen').hidden=true;$('pauseScreen').hidden=true;
   show('game');
   running=true;renderPanel();updateHud(true);
@@ -1322,7 +1433,7 @@ function updateHud(force){
   const sp=waveSpawning(),st=[S.gold,S.lives,S.wave,sp,S.enemies.length>0,S.over,S.won,running].join('|');
   if(!force&&st===hudCache)return;hudCache=st;
   $('gold').textContent=S.gold;$('lives').textContent=S.lives;$('wave').textContent=S.wave;
-  $('waveOf').textContent=S.wave>MAIN_WAVES?'':'/'+MAIN_WAVES;
+  $('waveOf').textContent=S.wave>MAIN_WAVES||M.daily?'':'/'+MAIN_WAVES;
   const b=$('waveBtn');
   if(S.over){b.disabled=true;b.textContent='Partie terminée'}
   else if(sp){b.disabled=true;b.textContent=`Vague ${S.wave} en approche`}
@@ -1332,7 +1443,7 @@ function updateHud(force){
 function banner(title,sub){const el=$('banner');el.innerHTML=title+(sub?`<small>${sub}</small>`:'');el.classList.remove('show');void el.offsetWidth;el.classList.add('show')}
 function showEnd(win){
   $('endScreen').hidden=false;$('bContinue').hidden=!win;
-  $('endTitle').textContent=win?'Victoire !':'Le trésor est perdu';
+  $('endTitle').textContent=win?'Victoire !':M.daily?'Fin du défi':'Le trésor est perdu';
   $('endText').textContent=win?`${M.name} est à vous : la flotte royale a sombré après ${MAIN_WAVES} vagues. Continuez en mode sans fin pour gagner encore des doublons.`
     :`La Marine a vidé le coffre à la vague ${S.wave}. Vous avez repoussé ${S.cleared} vague${S.cleared>1?'s':''}.`;
   $('endEarn').innerHTML=`${DOUB} +${S.earned} doublons`;
@@ -1373,9 +1484,9 @@ $('speedBtn').onclick=()=>{if(!S)return;S.speed=S.speed%3+1;SV.speed=S.speed;sav
 function openPause(){if(!S||S.over||S.won)return;S.paused=true;$('pauseText').textContent=`${M.name} · vague ${S.wave} · ${S.earned} doublons gagnés pour l’instant.`;$('pauseScreen').hidden=false}
 $('pauseBtn').onclick=openPause;
 $('bResume').onclick=()=>{$('pauseScreen').hidden=true;S.paused=false};
-$('bRestart').onclick=()=>startGame(M);
+$('bRestart').onclick=()=>startGame(M,S.crew);
 $('bQuit').onclick=()=>{$('pauseScreen').hidden=true;running=false;pushScores();show('home')};
-$('bAgain').onclick=()=>startGame(M);
+$('bAgain').onclick=()=>startGame(M,S.crew);
 $('bPort').onclick=()=>{$('endScreen').hidden=true;running=false;show('home')};
 $('bContinue').onclick=()=>{S.endless=true;S.won=false;$('endScreen').hidden=true;updateHud(true);banner('Mode sans fin','')};
 function syncSound(){$('soundBtn').setAttribute('aria-pressed',!SV.muted);$('soundWaves').style.opacity=SV.muted?.15:1}
