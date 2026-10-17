@@ -393,7 +393,7 @@ const DAILY_CREWS={
 };
 // Tout tourne en boucle : la carte tous les 3 jours, le thème tous les 4, la règle décalée, l'équipage dans la liste du thème
 function dailyInfo(day=dayKey()){
-  if(day<'2026-10-18')return dailyInfoOld(day);
+  if(day<'2026-10-17')return dailyInfoOld(day);
   const n=Math.round(Date.parse(day)/864e5);
   const base=CHALLENGE_MAPS[n%CHALLENGE_MAPS.length],theme=THEMES[n%THEMES.length],mod=MODS[(n+Math.floor(n/12))%MODS.length];
   const list=DAILY_CREWS[theme.id],crew=list[Math.floor(n/THEMES.length)%list.length].slice();
