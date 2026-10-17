@@ -361,7 +361,7 @@ const THEMES=[
   {id:'armada',name:'Armada fantôme',shout:'Attaque de l’armada fantôme !',desc:'Des vaisseaux fantômes qui se réparent tout seuls.',w:{chaloupe:1,sloop:1,fregate:1,galion:0,fantome:7},ghostEarly:true},
   {id:'guerre',name:'Flotte de guerre',shout:'La flotte de guerre attaque !',desc:'Frégates et galions lourdement blindés.',w:{chaloupe:1,sloop:2,fregate:5,galion:3,fantome:0}},
 ];
-const UNIT={chaloupe:{cost:1,gap:.45,from:1},sloop:{cost:2,gap:.75,from:1},fregate:{cost:5,gap:1.2,from:4},galion:{cost:13,gap:1.9,from:7},fantome:{cost:4,gap:.9,from:5}};
+const UNIT={chaloupe:{cost:1,gap:.45,from:1},sloop:{cost:2,gap:.75,from:1},fregate:{cost:5,gap:1.2,from:4},galion:{cost:13,gap:1.9,from:9},fantome:{cost:4,gap:.9,from:5}};
 function dailyWave(n,map=M){
   const th=map.theme,R=rng(hashStr(map.daily+'-vague-'+n)),budget=(6+5*n+.5*n*n)*(map.wmul||1);
   const ok=Object.keys(UNIT).filter(k=>th.w[k]>0&&n>=(k==='fantome'&&th.ghostEarly?2:UNIT[k].from));
@@ -369,7 +369,8 @@ function dailyWave(n,map=M){
   const nG=n<5?1:n<10?2:3,types=[];
   for(let i=0;i<nG;i++){const k=pick();if(!types.includes(k))types.push(k)}
   const g=types.map(k=>[k,Math.min(40,Math.max(1,Math.floor(budget/types.length/UNIT[k].cost))),UNIT[k].gap]);
-  if(n%10===0)g.push(['kraken',Math.min(2,n/10),14]);
+  // Vague 10 : une meute de petits krakens pour prévenir, puis le grand Kraken (deux à partir de la vague 40)
+  if(n===10)g.push(['krakenet',4,2.5]);else if(n%10===0)g.push(['kraken',n<40?1:2,14]);
   return g;
 }
 const MODS=[
@@ -600,6 +601,8 @@ function waveDef(n){
 }
 function hpMul(n){
   const b=m=>1+.12*(m-1)+.006*(m-1)*(m-1);
+  // Défi du jour : croissance douce pour viser une cinquantaine de vagues
+  if(M.daily)return M.hp*b(n)*Math.pow(M.dg||1.04,Math.max(0,n-MAIN_WAVES));
   return M.hp*(n<=MAIN_WAVES?b(n):b(MAIN_WAVES)*Math.pow(1.12,Math.min(n,30)-MAIN_WAVES)*Math.pow(1.18,Math.max(0,n-30)));
 }
 
@@ -1141,12 +1144,14 @@ function kill(e){
   if(e.def.kraken&&!e.def.mini){S.shake=10;sfx('boom');if(M.daily||e.wave.n>MAIN_WAVES)dropMinis(e,3)}
 }
 function leak(e){
-  e.dead=true;e.wave.alive--;S.lives=Math.max(0,S.lives-e.def.lives);
-  S.shake=9;sfx('leak');text((chestTile().c+.5)*TS,(chestTile().r-.4)*TS,'-'+e.def.lives,'#ff7a63');splash(e.x,e.y,8);
+  // Défi du jour : le grand Kraken ne vole que 5 trésors
+  const lost=M.daily&&e.def.big?5:e.def.lives;
+  e.dead=true;e.wave.alive--;S.lives=Math.max(0,S.lives-lost);
+  S.shake=9;sfx('leak');text((chestTile().c+.5)*TS,(chestTile().r-.4)*TS,'-'+lost,'#ff7a63');splash(e.x,e.y,8);
   if(S.lives<=0)gameOver();
 }
 function spawn(type,wave,at){
-  const d=ED[type],hp=d.hp*hpMul(wave.n),P=at?at.path:PATHS[d.kraken?0:(S.spawnIdx++)%PATHS.length],d0=at?at.d:0,p=posAt(P,d0);
+  const d=ED[type],hp=d.hp*hpMul(wave.n)*(M.daily&&d.big?.6:1),P=at?at.path:PATHS[d.kraken?0:(S.spawnIdx++)%PATHS.length],d0=at?at.d:0,p=posAt(P,d0);
   S.enemies.push({def:d,wave,path:P,hp,max:hp,armor:d.armor,spd:d.spd*TS*(M.spdMul||1),d:d0,x:p.x,y:p.y,ang:p.ang,dropped:0,
     slowT:0,slowF:1,stunT:0,burnT:0,burnDps:0,brkT:0,brk:0,noRegen:0,fearF:1,flash:0,wakeT:0,phase:Math.random()*6});
   wave.alive++;
