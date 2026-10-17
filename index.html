@@ -348,7 +348,7 @@ const CHALLENGE_MAPS=[
    paths:[[[1,-1.4],[1,5],[4,5],[4,12.3]],[[7,-1.4],[7,5],[4,5],[4,12.3]],[[-1.4,9],[4,9],[4,12.3]]],
    deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[4,1,'rock'],[8,10,'barrels']],
    pal:{grass:['#7a9a46','#83a34b','#728f40','#7d9d48'],sand:'#e8c98c',sand2:'#f2d8a2',sand3:'#dbb87a',water:['#4fb3c2','#2b8aa3','#1d6f8b'],tuft:'rgba(50,70,20,.45)'}},
-  {id:'lignedroite',name:'La Ligne Droite',diff:'Défi',tier:2,hp:1.25,gold:260,lives:20,
+  {id:'lignedroite',name:'La Ligne Droite',diff:'Défi',tier:2,hp:.85,gold:300,lives:20,
    desc:'Un seul chenal tout droit, du haut jusqu’au coffre. Aucun virage pour vous aider : tout se joue sur le placement.',
    paths:[[[4,-1.4],[4,12.3]]],
    deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[1,6,'barrels'],[7,6,'rock']],
@@ -363,7 +363,7 @@ const THEMES=[
 ];
 const UNIT={chaloupe:{cost:1,gap:.45,from:1},sloop:{cost:2,gap:.75,from:1},fregate:{cost:5,gap:1.2,from:4},galion:{cost:13,gap:1.9,from:7},fantome:{cost:4,gap:.9,from:5}};
 function dailyWave(n,map=M){
-  const th=map.theme,R=rng(hashStr(map.daily+'-vague-'+n)),budget=6+5*n+.5*n*n;
+  const th=map.theme,R=rng(hashStr(map.daily+'-vague-'+n)),budget=(6+5*n+.5*n*n)*(map.wmul||1);
   const ok=Object.keys(UNIT).filter(k=>th.w[k]>0&&n>=(k==='fantome'&&th.ghostEarly?2:UNIT[k].from));
   const pick=()=>{let tot=ok.reduce((a,k)=>a+th.w[k],0),x=R()*tot;for(const k of ok){x-=th.w[k];if(x<=0)return k}return ok[0]};
   const nG=n<5?1:n<10?2:3,types=[];
@@ -380,7 +380,28 @@ const MODS=[
 ];
 function dayKey(d=new Date()){return d.toISOString().slice(0,10)}
 function hashStr(t){let h=2166136261;for(const ch of t){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+// Équipages prédéfinis par thème : chacun a une réponse au thème (zone contre la ruée, exorciste contre les fantômes…)
+const DAILY_CREWS={
+  mixte:[['canonnier','mousquetaire','sorcier','lancefilets','tresorier'],['mousse','bombardier','corsaire','sirene','chirurgien'],
+    ['canonnier','grenadier','capitaine','duelliste','cuisinier'],['mousquetaire','canonnier','barbenoire','perroquets','vigie']],
+  ruee:[['mousse','grenadier','bombardier','sorcier','violoneux'],['canonnier','lancefilets','perroquets','artificier','cuisinier'],
+    ['mousquetaire','poudrier','corsaire','grenadier','navigatrice']],
+  armada:[['mousquetaire','exorciste','flambeuse','bombardier','violoneux'],['canonnier','exorciste','sorcier','poudrier','chirurgien'],
+    ['mousse','exorciste','hollandais','grenadier','lancefilets']],
+  guerre:[['canonnier','charpentier','artilleuse','harponneur','quartiermaitre'],['mousquetaire','charpentier','demolisseur','vigie','navigatrice'],
+    ['canonnier','charpentier','chasseur','bombardier','harponneur']],
+};
+// Tout tourne en boucle : la carte tous les 3 jours, le thème tous les 4, la règle décalée, l'équipage dans la liste du thème
 function dailyInfo(day=dayKey()){
+  if(day<'2026-10-18')return dailyInfoOld(day);
+  const n=Math.round(Date.parse(day)/864e5);
+  const base=CHALLENGE_MAPS[n%CHALLENGE_MAPS.length],theme=THEMES[n%THEMES.length],mod=MODS[(n+Math.floor(n/12))%MODS.length];
+  const list=DAILY_CREWS[theme.id],crew=list[Math.floor(n/THEMES.length)%list.length].slice();
+  const map=Object.assign({},base,{daily:day,mod,lives:mod.lives||base.lives,gold:Math.round(base.gold*(mod.goldMul||1)),spdMul:mod.spdMul||1,theme});
+  return{day,map,crew,mod,theme};
+}
+// Ancien tirage au hasard, gardé pour que les défis déjà joués restent identiques
+function dailyInfoOld(day){
   const R=rng(hashStr('pirate-bastion-'+day));
   const base=CHALLENGE_MAPS[hashStr('map'+day)%CHALLENGE_MAPS.length],mod=MODS[Math.floor(R()*MODS.length)];
   let crew;
@@ -1187,7 +1208,7 @@ function botTick(){
   const B=S.bot;
   if(!B.samples){B.samples=[];for(const P of PATHS)for(let d=0;d<P.len;d+=TS*.25){const q=posAt(P,d);if(q.y>0)B.samples.push(q)}}
   for(const t of S.towers){const mi=mergeInfo(t);if(mi&&mi.ok){doMerge(t);return}}
-  const id=BOT_ORDER[B.oi%BOT_ORDER.length],p=PBY[id];
+  const O=B.order||BOT_ORDER,id=O[B.oi%O.length],p=PBY[id];
   const low=S.towers.filter(t=>t.lvl<2).sort((a,b)=>a.lvl-b.lvl)[0];
   const wantBuild=!low||S.towers.length<6+S.wave,tile=wantBuild?botTile(id):null;
   if(tile&&S.gold>=p.cost){S.selTile=tile;build(id);S.sel=null;B.oi++;return}
@@ -1881,7 +1902,7 @@ $('logoTitle').addEventListener('click',()=>{
   save();renderHome();initAudio();sfx('win');
   $('logoText').textContent='Mode triche : les 30 pirates et les 4 îles sont débloqués.';
 });
-if(location.hash==='#test')window.__pb={get S(){return S},dailyInfo,startGame,update,BOT_CREW,dailyWave};
+if(location.hash==='#test')window.__pb={get S(){return S},dailyInfo,startGame,update,BOT_CREW,dailyWave,PBY};
 show('home');
 if(document.fonts)document.fonts.ready.then(()=>{if(view==='game')renderPanel()});
 requestAnimationFrame(frame);
