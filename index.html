@@ -338,17 +338,17 @@ function spiralPath(cx,cy,r0,rEnd,gap,ky){
 }
 // Îles du défi du jour : une par jour, dans l'ordre d'un tirage fixé par la date
 const CHALLENGE_MAPS=[
-  {id:'spirale',name:'Spirale du Maelström',diff:'Défi',tier:2,hp:1.15,gold:250,lives:20,
+  {id:'spirale',name:'Spirale du Maelström',diff:'Défi',tier:2,hp:1.15,gold:370,lives:20,
    desc:'Un tourbillon qui s’enroule jusqu’au coffre, caché au cœur de la spirale. Très long, mais chaque pirate couvre deux anneaux.',
    paths:[spiralPath(4,6.2,3.7,.85,1.8,1.62)],chest:{c:4,r:6},
    deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[4,13,'barrels']],fog:true,
    pal:{grass:['#4d8a6a','#56926f','#478262','#508c69'],sand:'#d6c79c',sand2:'#e2d6b0',sand3:'#c9b98c',water:['#58c1c9','#2c8ea6','#1a627c'],tuft:'rgba(20,60,40,.45)'}},
-  {id:'troisbras',name:'Les Trois Bras',diff:'Défi',tier:2,hp:1.05,gold:270,lives:20,
+  {id:'troisbras',name:'Les Trois Bras',diff:'Défi',tier:2,hp:1.05,gold:400,lives:20,
    desc:'Trois chenaux courts arrivent de trois côtés et se rejoignent juste avant le coffre.',
    paths:[[[1,-1.4],[1,5],[4,5],[4,12.3]],[[7,-1.4],[7,5],[4,5],[4,12.3]],[[-1.4,9],[4,9],[4,12.3]]],
    deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[4,1,'rock'],[8,10,'barrels']],
    pal:{grass:['#7a9a46','#83a34b','#728f40','#7d9d48'],sand:'#e8c98c',sand2:'#f2d8a2',sand3:'#dbb87a',water:['#4fb3c2','#2b8aa3','#1d6f8b'],tuft:'rgba(50,70,20,.45)'}},
-  {id:'lignedroite',name:'La Ligne Droite',diff:'Défi',tier:2,hp:.85,gold:300,lives:20,
+  {id:'lignedroite',name:'La Ligne Droite',diff:'Défi',tier:2,hp:.85,gold:420,lives:20,
    desc:'Un seul chenal tout droit, du haut jusqu’au coffre. Aucun virage pour vous aider : tout se joue sur le placement.',
    paths:[[[4,-1.4],[4,12.3]]],
    deco:[[0,0,'palm'],[8,0,'palm'],[0,13,'palm'],[8,13,'palm'],[1,6,'barrels'],[7,6,'rock']],
